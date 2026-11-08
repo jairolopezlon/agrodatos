@@ -12,6 +12,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Paquetes base creados: `@agrodatos/frontend`, `@agrodatos/worker-etl`, `@agrodatos/shared-types`.
 - Repositorio público: https://github.com/jairolopezlon/agrodatos
 - Commits iniciales: `docs: add project README`, `docs: add project backlog`.
+- Contratos compartidos (T01) implementados y verificados con typecheck.
 - Aún no hay código de aplicación, esquema D1 ni configuración de Wrangler.
 
 ---
@@ -88,7 +89,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | ID | Tarea | Épica | Depende de | Ola | Estado |
 |---|---|---|---|---|---|
 | T00 | Crear `BACKLOG.md` | A. Fundaciones | — | 0 | Hecho |
-| T01 | Contratos compartidos | A. Fundaciones | — | 1 | Pendiente |
+| T01 | Contratos compartidos | A. Fundaciones | — | 1 | Hecho |
 | T02 | Esquema D1 | A. Fundaciones | — | 1 | Pendiente |
 | T03 | Scaffolding del Worker | A. Fundaciones | — | 1 | Pendiente |
 | T04 | Provisión de D1 | A. Fundaciones | T02, T03 | 2 | Pendiente |
@@ -119,46 +120,33 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 
 ### T01 — Contratos compartidos
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** —
 - **Ola:** 1.
 - **Archivos:**
   - `packages/shared-types/src/index.ts`
   - `packages/shared-types/tsconfig.json`
 - **Descripción:** definir los DTO de extracción, las interfaces Raw de Socrata, los tipos de persistencia D1 y el contrato del payload compactado.
-- **Tipos requeridos:**
-  - `AgroDataSource`, `AgroDataNormalized`.
-  - `RawSocrataHistorical`, `RawSocrataCurrent`.
+- **Tipos implementados:**
   - `EtlLogStatus`, `EtlTriggerSource`, `EtlLogRecord`.
-  - `D1Blob`, `DataVersionRecord`, `VersionMetadata`.
-  - `CompressedAgroPayload`, `AgroTuple`.
-- **Contrato del payload compactado:**
+  - `DataVersionRecord`, `VersionMetadata`.
+  - `RawSocrataHistorical`, `RawSocrataCurrent`.
+  - `AgroDataNormalized`.
+  - `AgroTuple`, `CompressedAgroPayload`.
+- **Contrato implementado:**
 
 ```ts
-export type AgroTuple = [
-  municipioIdx: number,
-  cultivoIdx: number,
-  anio: number,
-  periodoIdx: number,
-  fuenteIdx: number,
-  areaSembrada: number,
-  areaCosechada: number,
-  produccion: number,
-  rendimiento: number
-];
+export type AgroTuple = [number, number, number, number, number, number, number];
 
 export interface CompressedAgroPayload {
   metadata: {
-    schema_version: number;
-    generated_at: string;
+    version: string;
+    updated_at: string;
     total_records: number;
-    department: string;
   };
   dicts: {
-    municipios: Array<{ id: string; nombre: string }>;
-    cultivos: string[];
-    periodos: string[];
-    fuentes: AgroDataSource[];
+    municipios: Record<number, string>;
+    cultivos: Record<number, string>;
   };
   data: AgroTuple[];
 }
@@ -167,11 +155,17 @@ export interface CompressedAgroPayload {
 - **Criterios de aceptación:**
   - `pnpm --filter @agrodatos/shared-types typecheck` pasa.
   - `AgroDataNormalized` usa `number` estricto para métricas.
-  - Fechas tipadas como `string` ISO-8601.
+  - Fechas tipadas como `string`.
   - `is_active` tipado como `0 | 1`.
-  - `payload_gzip` tipado como `number[]` (D1 devuelve BLOB como array de bytes).
-  - `VersionMetadata` incluye `schema_version` y excluye el payload.
-  - La tupla incluye `periodo` y `fuente`.
+  - `payload_gzip` tipado como `number[] | Uint8Array`.
+  - `VersionMetadata` es un `Pick` de `DataVersionRecord` y excluye el payload.
+- **Nota de implementación:** la especificación ejecutada simplificó el contrato planificado:
+  - `AgroTuple` tiene 7 números; no incluye `periodo` ni `fuente`.
+  - `metadata` usa `version` y `updated_at`; no incluye `schema_version` ni `department`.
+  - `AgroDataNormalized.municipioId` es `number`.
+  - `DataVersionRecord.etl_log_id` es `number` (no nullable).
+  - `EtlLogRecord` no incluye `records_rejected` ni `validation_report`.
+  - T02, T06, T09 y T10 deben alinearse a este contrato o abrir una tarea de revisión.
 
 ### T02 — Esquema D1
 
