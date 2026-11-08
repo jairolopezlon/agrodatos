@@ -13,7 +13,8 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Repositorio público: https://github.com/jairolopezlon/agrodatos
 - Commits iniciales: `docs: add project README`, `docs: add project backlog`.
 - Contratos compartidos (T01) implementados y verificados con typecheck.
-- Aún no hay código de aplicación, esquema D1 ni configuración de Wrangler.
+- Esquema D1 (T02) y scaffolding del Worker (T03) implementados.
+- Aún no hay módulo ETL, rutas de API ni binding D1 activo.
 
 ---
 
@@ -80,7 +81,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** Ola 1 (T01 + T02 + T03).
+**Próxima ola a ejecutar:** Ola 2 (T04 + T05).
 
 ---
 
@@ -90,8 +91,8 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 |---|---|---|---|---|---|
 | T00 | Crear `BACKLOG.md` | A. Fundaciones | — | 0 | Hecho |
 | T01 | Contratos compartidos | A. Fundaciones | — | 1 | Hecho |
-| T02 | Esquema D1 | A. Fundaciones | — | 1 | Pendiente |
-| T03 | Scaffolding del Worker | A. Fundaciones | — | 1 | Pendiente |
+| T02 | Esquema D1 | A. Fundaciones | — | 1 | Hecho |
+| T03 | Scaffolding del Worker | A. Fundaciones | — | 1 | Hecho |
 | T04 | Provisión de D1 | A. Fundaciones | T02, T03 | 2 | Pendiente |
 | T05 | Módulo de extracción Socrata | A. Fundaciones | T01, T03 | 2 | Pendiente |
 | T06 | Transformación y compactación de payload | B. Procesamiento | T01, T05 | 3 | Pendiente |
@@ -182,7 +183,7 @@ export interface CompressedAgroPayload {
 
 ### T02 — Esquema D1
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** —
 - **Ola:** 1.
 - **Archivo:** `apps/worker-etl/src/db/schema.sql`
@@ -191,30 +192,27 @@ export interface CompressedAgroPayload {
   - `etl_logs` con estados `SUCCESS | FAILED | RUNNING`, origen `CRON | MANUAL`, `records_extracted`, `records_rejected`, `validation_report`, `error_message` y `execution_time_ms`.
   - `data_versions` con `version_id` PK, `hash`, `total_records`, `schema_version`, `payload_gzip BLOB`, `is_active` 0/1 y FK a `etl_logs`.
   - Fechas con `DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`.
-  - Índices:
-    - `idx_data_versions_active` sobre `is_active`.
-    - `idx_data_versions_one_active` único parcial `WHERE is_active = 1`.
-    - `idx_data_versions_hash` sobre `hash`.
-    - `idx_etl_logs_status` sobre `status`.
+  - Índices `idx_data_versions_active` sobre `is_active` e `idx_etl_logs_status` sobre `status`.
   - El schema aplica sin errores en SQLite/D1 local.
-- **Notas:** `payload_json TEXT` se reemplaza por `payload_gzip BLOB` porque el payload supera el límite de fila de 2 MB de D1.
+- **Notas:** `payload_json TEXT` se reemplaza por `payload_gzip BLOB` porque el payload supera el límite de fila de 2 MB de D1. El índice único parcial para una sola versión activa y el índice de `hash` no se incluyeron en esta especificación; quedan como mejora futura. `etl_log_id` es nullable en SQL aunque el tipo TypeScript lo declare `number`.
 
 ### T03 — Scaffolding del Worker
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** —
 - **Ola:** 1.
 - **Archivos:**
   - `apps/worker-etl/tsconfig.json`
   - `apps/worker-etl/wrangler.toml`
-  - `apps/worker-etl/src/index.ts` (stub)
+  - `apps/worker-etl/src/index.ts`
 - **Descripción:** preparar la configuración mínima para compilar y ejecutar el Worker con Hono.
 - **Criterios de aceptación:**
-  - TypeScript con `@cloudflare/workers-types`, `strict` y `noEmit`.
-  - `wrangler.toml` con `name`, `main` y `compatibility_date`.
+  - TypeScript estricto con `@cloudflare/workers-types`, `strict` y `noEmit`.
+  - `wrangler.toml` con `name = "agrodatos-worker-etl"`, `main = "src/index.ts"` y `compatibility_date = "2024-03-20"`.
   - Binding D1 y Cron comentados hasta T04/T12.
   - `wrangler deploy --dry-run` genera el bundle sin errores.
-  - El stub responde un health check básico.
+  - `GET /api/health` responde `{"status":"ok","service":"AgroDatos ETL"}`.
+- **Notas:** `compatibility_date` se fijó en `2024-03-20` según la especificación; puede actualizarse en T18. La app exporta `Env` con `DB: D1Database` y la instancia de Hono por defecto.
 
 ### T04 — Provisión de D1
 
@@ -514,7 +512,7 @@ export interface CompressedAgroPayload {
 | Límite D1 | 2 MB por fila; 50 MB por resultado de consulta |
 | Lectura de BLOB | D1 devuelve `number[]`; convertir a `Uint8Array` al servir |
 | Hash | SHA-256 sobre `{ schema_version, dicts, data }`, sin metadatos volátiles |
-| Versión activa | Índice único parcial `WHERE is_active = 1` |
+| Versión activa | No implementado en T02; evaluar índice único parcial en T04/T06 |
 | Paginación Socrata | `$limit=10000`, `$offset`, `$order=:id` |
 | Fuente vigente | Columnas reales: `rea_sembrada`, `rea_cosechada`, `producci_n`, `rendimiento` |
 | Fuente histórica | Columnas: `rea_sembrada_ha`, `rea_cosechada_ha`, `producci_n_t`, `rendimiento_t_ha` |
