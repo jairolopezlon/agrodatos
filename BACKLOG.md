@@ -11,8 +11,29 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Monorepo `pnpm workspaces` inicializado.
 - Paquetes base creados: `@agrodatos/frontend`, `@agrodatos/worker-etl`, `@agrodatos/shared-types`.
 - Repositorio público: https://github.com/jairolopezlon/agrodatos
-- Primer commit: `docs: add project README`.
+- Commits iniciales: `docs: add project README`, `docs: add project backlog`.
 - Aún no hay código de aplicación, esquema D1 ni configuración de Wrangler.
+
+---
+
+## Cambios de esta revisión
+
+Se validó el backlog propuesto y se aplicaron estos ajustes:
+
+1. **T06/T07 reordenados lógicamente:** la validación de calidad se ejecuta sobre `AgroDataNormalized[]`, antes de compactar. No se validan tuplas comprimidas.
+2. **Tupla comprimida corregida:** incluye `periodo` y `fuente`; antes se perdían y se mezclaban registros semestrales de la fuente vigente.
+3. **Dependencia inválida corregida:** T10 (orquestador) ahora depende de T09. En la propuesta original T09 y T10 estaban en la misma ola, pero T10 dependía de T09.
+4. **T11 API desacoplada del orquestador:** los endpoints públicos solo dependen del repositorio (T08). El trigger administrativo se mueve a T12.
+5. **T16 corregida:** la vista admin depende de T12 (endpoint protegido) además de T13.
+6. **Testing recuperado:** se agrega T17, que la propuesta había eliminado.
+7. **Despliegue agregado:** se agrega T18 para Cloudflare Pages/Workers y CI/CD.
+8. **Hash determinista:** se calcula sobre `{ schema_version, dicts, data }`, excluyendo `generated_at`, `version_id` y otros metadatos volátiles. Así no se descarga el payload si los datos no cambiaron.
+9. **`schema_version` agregado** a `data_versions` y `VersionMetadata` para invalidar cachés del frontend.
+10. **Una sola versión activa garantizada** con índice único parcial en D1.
+11. **Auditoría de calidad:** se agregan `records_rejected` y `validation_report` a `etl_logs`.
+12. **Shadcn UI descartado por defecto:** contradice la decisión inicial de “Tailwind CSS puro”. Se usarán componentes nativos + Tailwind; Shadcn queda como evaluación futura.
+13. **Dexie no es síncrono:** la lectura se hará con React Query o `useLiveQuery`, nunca de forma síncrona.
+14. **Vista admin con logs:** se agrega `GET /api/admin/etl/:id` para que la UI pueda consultar el estado y los logs del trigger.
 
 ---
 
@@ -51,11 +72,12 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 | 0 | T00 | Crear y versionar el backlog |
 | 1 | T01, T02, T03 | Fundaciones: contratos, esquema D1 y scaffolding del Worker |
 | 2 | T04, T05 | Base D1 provisionada y módulo de extracción Socrata |
-| 3 | T06, T07 | Repositorio D1 y construcción de versiones comprimidas |
-| 4 | T08, T09 | Orquestador ETL y API Hono |
-| 5 | T10, T11 | Automatización con Cron y pruebas |
-| 6 | T12 | Cliente de datos offline en el frontend |
-| 7 | T13, T14 | PWA offline y visualización |
+| 3 | T06, T07, T08 | Transformación, Data Quality (Circuit Breaker) y Repositorio D1 |
+| 4 | T09, T11 | Versionado (gzip/hash) y API pública de Hono |
+| 5 | T10, T13 | Orquestador ETL y cliente offline del frontend |
+| 6 | T12, T14, T15 | Cron/trigger seguro, PWA y visualización |
+| 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
+| 8 | T18 | Despliegue y CI/CD |
 
 **Próxima ola a ejecutar:** Ola 1 (T01 + T02 + T03).
 
@@ -71,15 +93,19 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 | T03 | Scaffolding del Worker | A. Fundaciones | — | 1 | Pendiente |
 | T04 | Provisión de D1 | A. Fundaciones | T02, T03 | 2 | Pendiente |
 | T05 | Módulo de extracción Socrata | A. Fundaciones | T01, T03 | 2 | Pendiente |
-| T06 | Repositorio D1 | B. Persistencia | T01, T02, T04 | 3 | Pendiente |
-| T07 | Versionado, hash y gzip | B. Persistencia | T01, T05 | 3 | Pendiente |
-| T08 | Orquestador ETL + Load | B. Persistencia | T05, T06, T07 | 4 | Pendiente |
-| T09 | API Hono | C. API y automatización | T06 | 4 | Pendiente |
-| T10 | Cron + trigger manual | C. API y automatización | T08 | 5 | Pendiente |
-| T11 | Pruebas y smoke tests | C. API y automatización | T08, T09 | 5 | Pendiente |
-| T12 | Cliente frontend + Dexie | D. Frontend offline | T09 | 6 | Pendiente |
-| T13 | PWA y sincronización offline | D. Frontend offline | T12 | 7 | Pendiente |
-| T14 | Visualización de datos | D. Frontend offline | T12 | 7 | Pendiente |
+| T06 | Transformación y compactación de payload | B. Procesamiento | T01, T05 | 3 | Pendiente |
+| T07 | Data Quality y Circuit Breaker | B. Procesamiento | T01, T05 | 3 | Pendiente |
+| T08 | Repositorio D1 | B. Procesamiento | T01, T02, T04 | 3 | Pendiente |
+| T09 | Versionado, hash y gzip | B. Procesamiento | T06, T07 | 4 | Pendiente |
+| T10 | Orquestador ETL + Load | B. Procesamiento | T05, T06, T07, T08, T09 | 5 | Pendiente |
+| T11 | API Hono y endpoints públicos | C. API y automatización | T08 | 4 | Pendiente |
+| T12 | Cron + trigger manual seguro | C. API y automatización | T10, T11 | 6 | Pendiente |
+| T13 | Cliente frontend + Dexie | D. Frontend offline | T11 | 5 | Pendiente |
+| T14 | PWA y sincronización offline | D. Frontend offline | T13 | 6 | Pendiente |
+| T15 | Visualización de datos (Chart.js) | D. Frontend offline | T13 | 6 | Pendiente |
+| T16 | Vista Admin y UI del Trigger ETL | D. Frontend offline | T12, T13 | 7 | Pendiente |
+| T17 | Pruebas y smoke tests | C. API y automatización | T06, T07, T08, T09, T10, T11 | 7 | Pendiente |
+| T18 | Despliegue y CI/CD | E. Operación | T14, T16, T17 | 8 | Pendiente |
 
 ---
 
@@ -89,7 +115,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 
 - **Entregable:** este archivo.
 - **Estado:** Hecho.
-- **Criterio de aceptación:** backlog versionado en el repositorio con tareas, dependencias y olas.
+- **Criterio de aceptación:** backlog versionado con tareas, dependencias y olas.
 
 ### T01 — Contratos compartidos
 
@@ -99,19 +125,53 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - **Archivos:**
   - `packages/shared-types/src/index.ts`
   - `packages/shared-types/tsconfig.json`
-- **Descripción:** definir los DTO de extracción, las interfaces Raw de Socrata y los tipos de persistencia D1.
+- **Descripción:** definir los DTO de extracción, las interfaces Raw de Socrata, los tipos de persistencia D1 y el contrato del payload compactado.
 - **Tipos requeridos:**
   - `AgroDataSource`, `AgroDataNormalized`.
   - `RawSocrataHistorical`, `RawSocrataCurrent`.
   - `EtlLogStatus`, `EtlTriggerSource`, `EtlLogRecord`.
   - `D1Blob`, `DataVersionRecord`, `VersionMetadata`.
+  - `CompressedAgroPayload`, `AgroTuple`.
+- **Contrato del payload compactado:**
+
+```ts
+export type AgroTuple = [
+  municipioIdx: number,
+  cultivoIdx: number,
+  anio: number,
+  periodoIdx: number,
+  fuenteIdx: number,
+  areaSembrada: number,
+  areaCosechada: number,
+  produccion: number,
+  rendimiento: number
+];
+
+export interface CompressedAgroPayload {
+  metadata: {
+    schema_version: number;
+    generated_at: string;
+    total_records: number;
+    department: string;
+  };
+  dicts: {
+    municipios: Array<{ id: string; nombre: string }>;
+    cultivos: string[];
+    periodos: string[];
+    fuentes: AgroDataSource[];
+  };
+  data: AgroTuple[];
+}
+```
+
 - **Criterios de aceptación:**
   - `pnpm --filter @agrodatos/shared-types typecheck` pasa.
   - `AgroDataNormalized` usa `number` estricto para métricas.
   - Fechas tipadas como `string` ISO-8601.
   - `is_active` tipado como `0 | 1`.
   - `payload_gzip` tipado como `number[]` (D1 devuelve BLOB como array de bytes).
-  - `VersionMetadata` excluye el payload.
+  - `VersionMetadata` incluye `schema_version` y excluye el payload.
+  - La tupla incluye `periodo` y `fuente`.
 
 ### T02 — Esquema D1
 
@@ -121,10 +181,14 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - **Archivo:** `apps/worker-etl/src/db/schema.sql`
 - **Descripción:** crear las tablas `etl_logs` y `data_versions` con sus índices.
 - **Criterios de aceptación:**
-  - `etl_logs` con estados `SUCCESS | FAILED | RUNNING` y origen `CRON | MANUAL`.
-  - `data_versions` con `version_id` PK, `hash`, `total_records`, `payload_gzip BLOB`, `is_active` 0/1 y FK a `etl_logs`.
+  - `etl_logs` con estados `SUCCESS | FAILED | RUNNING`, origen `CRON | MANUAL`, `records_extracted`, `records_rejected`, `validation_report`, `error_message` y `execution_time_ms`.
+  - `data_versions` con `version_id` PK, `hash`, `total_records`, `schema_version`, `payload_gzip BLOB`, `is_active` 0/1 y FK a `etl_logs`.
   - Fechas con `DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`.
-  - Índices `idx_data_versions_active` e `idx_etl_logs_status`.
+  - Índices:
+    - `idx_data_versions_active` sobre `is_active`.
+    - `idx_data_versions_one_active` único parcial `WHERE is_active = 1`.
+    - `idx_data_versions_hash` sobre `hash`.
+    - `idx_etl_logs_status` sobre `status`.
   - El schema aplica sin errores en SQLite/D1 local.
 - **Notas:** `payload_json TEXT` se reemplaza por `payload_gzip BLOB` porque el payload supera el límite de fila de 2 MB de D1.
 
@@ -137,11 +201,11 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
   - `apps/worker-etl/tsconfig.json`
   - `apps/worker-etl/wrangler.toml`
   - `apps/worker-etl/src/index.ts` (stub)
-- **Descripción:** preparar la configuración mínima para compilar y ejecutar el Worker.
+- **Descripción:** preparar la configuración mínima para compilar y ejecutar el Worker con Hono.
 - **Criterios de aceptación:**
   - TypeScript con `@cloudflare/workers-types`, `strict` y `noEmit`.
   - `wrangler.toml` con `name`, `main` y `compatibility_date`.
-  - Binding D1 y Cron comentados hasta T04/T10.
+  - Binding D1 y Cron comentados hasta T04/T12.
   - `wrangler deploy --dry-run` genera el bundle sin errores.
   - El stub responde un health check básico.
 
@@ -154,7 +218,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - **Criterios de aceptación:**
   - Base creada en Cloudflare y `database_id` registrado en `wrangler.toml`.
   - Schema aplicado en local y remoto.
-  - `sqlite_master` muestra ambas tablas y ambos índices.
+  - `sqlite_master` muestra tablas e índices.
   - El Worker puede acceder a `env.DB`.
 - **Riesgos:** requiere autenticación y permisos de Cloudflare. Si no están disponibles, se aplica solo en local y la tarea queda `Bloqueada` para remoto.
 
@@ -182,9 +246,54 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 
 ---
 
-## Épica B — Persistencia y versionado
+## Épica B — Procesamiento y Persistencia
 
-### T06 — Repositorio D1
+### T06 — Transformación y compactación de payload
+
+- **Estado:** Pendiente.
+- **Depende de:** T01, T05.
+- **Ola:** 3.
+- **Archivo:** `apps/worker-etl/src/etl/transform.ts`
+- **Descripción:** convertir `AgroDataNormalized[]` en `CompressedAgroPayload` con diccionarios y tuplas posicionales.
+- **Reglas:**
+  - `dicts.municipios`: array de `{ id, nombre }` único, ordenado por `id`.
+  - `dicts.cultivos`: array de nombres único, ordenado alfabéticamente.
+  - `dicts.periodos`: array único, ordenado cronológicamente.
+  - `dicts.fuentes`: `["historico", "vigente"]` en orden fijo.
+  - `data`: tuplas `[municipioIdx, cultivoIdx, anio, periodoIdx, fuenteIdx, areaSembrada, areaCosechada, produccion, rendimiento]`.
+  - Diccionarios deterministas para que el hash sea estable.
+- **Criterios de aceptación:**
+  - El payload incluye `periodo` y `fuente` en cada registro.
+  - No se pierden registros semestrales (`2019A`, `2019B`).
+  - Entrada vacía produce un payload válido con diccionarios y data vacíos.
+  - Pruebas de determinismo: mismo input produce mismo output.
+
+### T07 — Data Quality y Circuit Breaker
+
+- **Estado:** Pendiente.
+- **Depende de:** T01, T05.
+- **Ola:** 3.
+- **Archivo:** `apps/worker-etl/src/etl/validate.ts`
+- **Descripción:** validar `AgroDataNormalized[]` antes de transformar y compactar.
+- **Reglas fatales (abortan el ETL):**
+  - Cero registros extraídos.
+  - Campos estructurales faltantes o schema inesperado.
+  - Tasa de rechazo superior al umbral configurado (por defecto 5%).
+- **Reglas por fila (rechazan el registro y cuentan):**
+  - `areaCosechada > areaSembrada`.
+  - `areaSembrada`, `areaCosechada`, `produccion` o `rendimiento` negativos.
+  - `anio` fuera de `2007–2025`.
+  - `municipioId` con longitud distinta de 5 o que no empiece por `76`.
+  - `municipioNombre` o `cultivo` vacíos.
+  - Outlier de área sembrada por encima del umbral configurable (por defecto 150 000 ha).
+- **Salida:** `ValidationResult` con `accepted`, `rejected`, `fatalErrors` y `report`.
+- **Criterios de aceptación:**
+  - El orquestador recibe filas aceptadas y un reporte serializable.
+  - Un dato atípico aislado no bloquea toda la actualización.
+  - El reporte se guarda en `etl_logs.validation_report`.
+  - Umbrales definidos como constantes configurables.
+
+### T08 — Repositorio D1
 
 - **Estado:** Pendiente.
 - **Depende de:** T01, T02, T04.
@@ -199,135 +308,193 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
   - `getVersionMetadata(env, versionId)`
   - `getVersionPayload(env, versionId)`
   - `activateVersion(env, versionId)`
+  - `getEtlLog(env, id)`
+  - `listEtlLogs(env, limit)`
 - **Criterios de aceptación:**
-  - Activación atómica con `env.DB.batch()`.
+  - Activación atómica con `env.DB.batch()`: desactivar la anterior y activar la nueva.
   - `getVersionPayload` convierte `number[]` a `Uint8Array`.
+  - `listEtlLogs` soporta la vista admin.
   - Integración verificada contra D1 local.
 
-### T07 — Versionado, hash y gzip
+### T09 — Versionado, hash y gzip
 
 - **Estado:** Pendiente.
-- **Depende de:** T01, T05.
-- **Ola:** 3.
+- **Depende de:** T06, T07.
+- **Ola:** 4.
 - **Archivo:** `apps/worker-etl/src/etl/version.ts`
-- **Descripción:** construir el payload consolidado y su metadata.
+- **Descripción:** construir el payload consolidado, su hash y su versión comprimida.
 - **Funciones propuestas:**
-  - `buildPayload(records)`
+  - `canonicalize(payload)`
   - `sha256Hex(input)`
   - `gzipJson(input)`
   - `buildVersionId(date, hash)`
-  - `buildVersion(records)`
+  - `buildVersion(payload)`
 - **Criterios de aceptación:**
-  - Hash SHA-256 calculado sobre el JSON sin comprimir.
+  - Hash SHA-256 sobre `{ schema_version, dicts, data }`, excluyendo `generated_at`, `version_id` y metadatos volátiles.
   - Compresión con `CompressionStream("gzip")`.
   - `version_id` con formato `YYYY.MM.DD-<hash corto>`.
-  - Payload comprimido < 2 MB.
-  - Pruebas unitarias de determinismo.
+  - Guardia: si el gzip supera 1,8 MB, lanzar error descriptivo (límite D1 de 2 MB).
+  - Pruebas de determinismo: mismo contenido produce mismo hash.
 
-### T08 — Orquestador ETL + Load
+### T10 — Orquestador ETL + Load
 
 - **Estado:** Pendiente.
-- **Depende de:** T05, T06, T07.
-- **Ola:** 4.
+- **Depende de:** T05, T06, T07, T08, T09.
+- **Ola:** 5.
 - **Archivo:** `apps/worker-etl/src/etl/run.ts`
 - **Descripción:** ejecutar el pipeline completo y registrar la auditoría.
 - **Flujo:**
   1. Crear `etl_logs` en `RUNNING`.
   2. Extraer datos de ambas fuentes.
-  3. Construir versión comprimida y hash.
-  4. Insertar `data_versions`.
-  5. Activar la nueva versión.
-  6. Marcar el log como `SUCCESS` o `FAILED`.
+  3. Validar con T07. Si hay error fatal, marcar `FAILED` y terminar.
+  4. Transformar y compactar con T06.
+  5. Construir versión con T09.
+  6. Comparar hash con la versión activa. Si es igual, no crear versión nueva.
+  7. Insertar `data_versions` y activarla atómicamente.
+  8. Marcar el log como `SUCCESS`.
+- **Manejo de errores:**
+  - Cualquier excepción marca el log como `FAILED`.
+  - La versión activa anterior se conserva.
+  - Se registran `records_extracted`, `records_rejected`, `validation_report`, `execution_time_ms` y `error_message`.
 - **Criterios de aceptación:**
-  - Si falla la extracción o el guardado, la versión activa anterior no se pierde.
-  - Se registran `records_extracted`, `execution_time_ms` y `error_message`.
+  - Re-ejecutar sin cambios no genera una versión nueva.
+  - Un fallo de validación no inserta ni activa versiones.
   - Retorna un resumen de la ejecución.
 
 ---
 
 ## Épica C — API y automatización
 
-### T09 — API Hono
-
-- **Estado:** Pendiente.
-- **Depende de:** T06.
-- **Ola:** 4.
-- **Archivos:** `apps/worker-etl/src/routes/*.ts`, `apps/worker-etl/src/index.ts`
-- **Descripción:** exponer metadata y payload al frontend.
-- **Endpoints propuestos:**
-  - `GET /api/health`
-  - `GET /api/version` → `VersionMetadata` de la versión activa.
-  - `GET /api/data/:versionId` → payload gzip con `Content-Encoding: gzip`.
-  - `HEAD /api/data/:versionId` para validación de caché.
-- **Criterios de aceptación:**
-  - `/api/version` no descarga el payload.
-  - ETag basado en `hash`.
-  - `Cache-Control: immutable` para URLs versionadas.
-  - CORS habilitado para el dominio de Pages.
-
-### T10 — Cron + trigger manual
+### T11 — API Hono y endpoints públicos
 
 - **Estado:** Pendiente.
 - **Depende de:** T08.
-- **Ola:** 5.
-- **Descripción:** automatizar la ejecución del ETL.
+- **Ola:** 4.
+- **Archivos:** `apps/worker-etl/src/routes/*.ts`, `apps/worker-etl/src/index.ts`
+- **Descripción:** exponer metadata y payload al frontend.
+- **Endpoints:**
+  - `GET /api/health`
+  - `GET /api/version` → `VersionMetadata` de la versión activa.
+  - `GET /api/data/:versionId` → payload gzip con `Content-Encoding: gzip`.
+  - `HEAD /api/data/:versionId`.
 - **Criterios de aceptación:**
-  - `scheduled()` invoca `runEtl(env, "CRON")`.
-  - Cron configurado en `wrangler.toml`.
-  - Ruta manual protegida por token secreto.
-  - El trigger manual registra `trigger_source = 'MANUAL'`.
+  - `/api/version` no descarga el payload.
+  - ETag basado en `hash`.
+  - `Cache-Control: no-cache` para metadata y `immutable` para URLs versionadas.
+  - CORS habilitado para el dominio de Pages.
+  - Respuesta 404 clara si no hay versión activa.
 
-### T11 — Pruebas y smoke tests
+### T12 — Cron + trigger manual seguro
 
 - **Estado:** Pendiente.
-- **Depende de:** T08, T09.
-- **Ola:** 5.
-- **Descripción:** cubrir adaptadores, versionado, repositorio y endpoints.
+- **Depende de:** T10, T11.
+- **Ola:** 6.
+- **Descripción:** automatizar la ejecución del ETL y exponer un trigger administrativo protegido.
 - **Criterios de aceptación:**
-  - Pruebas unitarias de `toNumber`, adaptadores y versionado.
-  - Prueba de integración con D1 local.
-  - Smoke test opcional contra Socrata real.
-  - Framework de pruebas a definir (Vitest o `node:test`).
+  - El entrypoint del Worker exporta `fetch` (Hono) y `scheduled`.
+  - `scheduled()` invoca `runEtl(env, "CRON")`.
+  - Cron configurado en `wrangler.toml`.
+  - `POST /api/admin/trigger` valida `Authorization: Bearer <ADMIN_API_KEY>`.
+  - El trigger responde `202 Accepted` con `etl_log_id` y ejecuta el ETL con `ctx.waitUntil`.
+  - `GET /api/admin/etl/:id` devuelve el `EtlLogRecord` para que la UI consulte estado y logs.
+  - Secreto configurado con `wrangler secret put ADMIN_API_KEY`.
+  - Comparación de token sin filtrar tiempos (hash o comparación constante).
+  - Nota: `scheduled` no es un método de Hono; es un handler del Worker.
+
+### T17 — Pruebas y smoke tests
+
+- **Estado:** Pendiente.
+- **Depende de:** T06, T07, T08, T09, T10, T11.
+- **Ola:** 7.
+- **Descripción:** cubrir las piezas críticas del pipeline y la API.
+- **Criterios de aceptación:**
+  - Unitarias: `toNumber`, adaptadores, transformación, reglas de validación, hash determinista y gzip.
+  - Integración: repositorio D1 local y rutas Hono con Miniflare/Wrangler.
+  - Smoke opcional contra Socrata real: > 20 000 registros, gzip < 2 MB, `schema_version` correcto.
+  - Framework a definir: Vitest o `node:test`.
+  - No se exige cobertura alta; sí cubrir los caminos que pueden corromper datos.
 
 ---
 
 ## Épica D — Frontend offline
 
-### T12 — Cliente frontend + Dexie
+### T13 — Cliente frontend + Dexie
 
 - **Estado:** Pendiente.
-- **Depende de:** T09.
-- **Ola:** 6.
+- **Depende de:** T11.
+- **Ola:** 5.
 - **Descripción:** implementar la capa de datos offline en React.
 - **Criterios de aceptación:**
-  - Esquema Dexie para metadata y payload.
-  - Hook/consulta de versión activa con TanStack Query.
-  - Descarga del payload solo si el hash cambió.
-  - Lectura de datos desde IndexedDB sin red.
+  - Esquema Dexie para metadata y payload compactado.
+  - Consulta de `/api/version` con TanStack Query.
+  - Descarga del payload solo si el hash o `schema_version` cambiaron.
+  - El navegador descomprime gzip automáticamente al usar `fetch().json()` con `Content-Encoding: gzip`.
+  - Lectura asíncrona desde Dexie con React Query o `useLiveQuery`; nunca síncrona.
+  - Limpieza de versiones antiguas (conservar la activa y opcionalmente la anterior).
+  - Manejo de `schema_version` no soportado con aviso de actualización.
+- **Notas:** el endpoint es `/api/version`, no un archivo estático `version.json`.
 
-### T13 — PWA y sincronización offline
+### T14 — PWA y sincronización offline
 
 - **Estado:** Pendiente.
-- **Depende de:** T12.
-- **Ola:** 7.
+- **Depende de:** T13.
+- **Ola:** 6.
 - **Descripción:** configurar `vite-plugin-pwa` y las estrategias de caché.
 - **Criterios de aceptación:**
-  - Estrategia network-first para `/api/version`.
-  - Estrategia cache-first/immutable para `/api/data/*`.
-  - Fallback offline y aviso de actualización disponible.
-  - Instalable como PWA.
+  - Estrategia NetworkFirst para `/api/version`.
+  - Estrategia CacheFirst para `/api/data/*` (URLs versionadas inmutables).
+  - Precache del app shell y fallback offline.
+  - Aviso de actualización disponible.
+  - Instalable como PWA con manifest e iconos.
+  - No se cachea el token de admin ni respuestas de `/api/admin/*`.
 
-### T14 — Visualización de datos
+### T15 — Visualización de datos (Chart.js)
 
 - **Estado:** Pendiente.
-- **Depende de:** T12.
-- **Ola:** 7.
+- **Depende de:** T13.
+- **Ola:** 6.
 - **Descripción:** construir las vistas y gráficas sobre el store local.
 - **Criterios de aceptación:**
-  - Filtros por municipio, cultivo y año.
+  - Agregar `chart.js` y `react-chartjs-2` a `apps/frontend/package.json`.
+  - Filtros por municipio, cultivo, año y periodo.
+  - Agregar/agrupar datos antes de graficar para no renderizar 26 000 puntos.
   - Gráficas responsivas con Chart.js.
   - Estados de carga, vacío y error.
   - Funcionamiento completo sin conexión.
+- **Notas:** no se instala Shadcn UI por defecto porque el stack inicial definió “Tailwind CSS puro”. Si se necesita un combobox con búsqueda, se evalúa una alternativa ligera más adelante.
+
+### T16 — Vista Admin y UI del Trigger ETL
+
+- **Estado:** Pendiente.
+- **Depende de:** T12, T13.
+- **Ola:** 7.
+- **Descripción:** crear la ruta `/admin` para disparar el ETL y consultar su estado.
+- **Criterios de aceptación:**
+  - Formulario con input de contraseña para `ADMIN_API_KEY`.
+  - La clave se mantiene solo en memoria; nunca en `localStorage` ni en el bundle.
+  - `POST /api/admin/trigger` con `Authorization: Bearer`.
+  - Polling de `GET /api/admin/etl/:id` cada 2–3 s hasta que el estado deje de ser `RUNNING`.
+  - Visualización de estado, registros extraídos, rechazados, duración y error.
+  - Tabla con los últimos logs del ETL.
+  - Nota de seguridad: para producción se recomienda Cloudflare Access sobre `/admin` y `/api/admin/*`.
+
+---
+
+## Épica E — Operación
+
+### T18 — Despliegue y CI/CD
+
+- **Estado:** Pendiente.
+- **Depende de:** T14, T16, T17.
+- **Ola:** 8.
+- **Descripción:** publicar frontend y Worker, y automatizar verificaciones.
+- **Criterios de aceptación:**
+  - Frontend desplegado en Cloudflare Pages.
+  - Worker desplegado con D1 remoto y secrets (`SOCRATA_APP_TOKEN`, `ADMIN_API_KEY`).
+  - Cron activo en producción.
+  - GitHub Actions: install, typecheck, tests, build y deploy en `main`.
+  - Documentación de variables, secrets y comandos de migración.
+  - Dominio personalizado opcional.
 
 ---
 
@@ -340,21 +507,26 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 | Payload | `payload_gzip BLOB` (~240 KB) en lugar de `payload_json TEXT` (~4,9 MB) |
 | Límite D1 | 2 MB por fila; 50 MB por resultado de consulta |
 | Lectura de BLOB | D1 devuelve `number[]`; convertir a `Uint8Array` al servir |
-| Hash | SHA-256 sobre el JSON sin comprimir |
+| Hash | SHA-256 sobre `{ schema_version, dicts, data }`, sin metadatos volátiles |
+| Versión activa | Índice único parcial `WHERE is_active = 1` |
 | Paginación Socrata | `$limit=10000`, `$offset`, `$order=:id` |
 | Fuente vigente | Columnas reales: `rea_sembrada`, `rea_cosechada`, `producci_n`, `rendimiento` |
 | Fuente histórica | Columnas: `rea_sembrada_ha`, `rea_cosechada_ha`, `producci_n_t`, `rendimiento_t_ha` |
-| Periodos | La fuente vigente es semestral (`2019A`, `2019B`); incluir `periodo` |
+| Periodos | La fuente vigente es semestral (`2019A`, `2019B`); la tupla incluye `periodo` |
 | Datos faltantes | Normalizar a `0` para mantener `number` estricto |
+| Validación | Fatal vs. por fila; abortar por tasa de rechazo, no por un outlier aislado |
+| UI | Tailwind puro + componentes nativos; Shadcn UI solo si se justifica |
+| Dexie | Lectura asíncrona con React Query o `useLiveQuery` |
+| Admin | `ADMIN_API_KEY` en memoria; Cloudflare Access recomendado en producción |
 
 ---
 
 ## Ideas futuras (no comprometidas)
 
-- Despliegue de frontend en Cloudflare Pages y Worker en producción.
-- CI/CD con GitHub Actions.
-- Observabilidad y alertas del ETL.
-- Validaciones de calidad de datos (rangos, duplicados, municipios válidos).
+- Observabilidad y alertas del ETL (duración, tasa de rechazo, errores).
 - Expansión a nivel nacional y estrategia de payload (R2 o chunks si crece).
-- Autenticación más robusta para el trigger manual.
 - Historial de versiones y rollback desde el frontend.
+- Validaciones estadísticas de outliers (IQR/z-score) en lugar de umbrales fijos.
+- Autenticación más robusta para el panel admin.
+- Compresión de payload con diccionarios más agresivos o formato columnar.
+- Pruebas de rendimiento de las gráficas con el dataset completo.
