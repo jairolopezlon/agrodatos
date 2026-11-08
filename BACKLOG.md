@@ -22,7 +22,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 Se validó el backlog propuesto y se aplicaron estos ajustes:
 
 1. **T06/T07 reordenados lógicamente:** la validación de calidad se ejecuta sobre `AgroDataNormalized[]`, antes de compactar. No se validan tuplas comprimidas.
-2. **Tupla comprimida corregida:** incluye `periodo` y `fuente`; antes se perdían y se mezclaban registros semestrales de la fuente vigente.
+2. **Tupla comprimida corregida:** incluye `periodo`; `fuente` queda pendiente de decisión para no perder la distinción histórico/vigente.
 3. **Dependencia inválida corregida:** T10 (orquestador) ahora depende de T09. En la propuesta original T09 y T10 estaban en la misma ola, pero T10 dependía de T09.
 4. **T11 API desacoplada del orquestador:** los endpoints públicos solo dependen del repositorio (T08). El trigger administrativo se mueve a T12.
 5. **T16 corregida:** la vista admin depende de T12 (endpoint protegido) además de T13.
@@ -136,17 +136,28 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 - **Contrato implementado:**
 
 ```ts
-export type AgroTuple = [number, number, number, number, number, number, number];
+export type AgroTuple = [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+];
 
 export interface CompressedAgroPayload {
   metadata: {
     version: string;
+    schema_version: number;
     updated_at: string;
     total_records: number;
   };
   dicts: {
     municipios: Record<number, string>;
     cultivos: Record<number, string>;
+    periodos: Record<number, string>;
   };
   data: AgroTuple[];
 }
@@ -159,13 +170,15 @@ export interface CompressedAgroPayload {
   - `is_active` tipado como `0 | 1`.
   - `payload_gzip` tipado como `number[] | Uint8Array`.
   - `VersionMetadata` es un `Pick` de `DataVersionRecord` y excluye el payload.
-- **Nota de implementación:** la especificación ejecutada simplificó el contrato planificado:
-  - `AgroTuple` tiene 7 números; no incluye `periodo` ni `fuente`.
-  - `metadata` usa `version` y `updated_at`; no incluye `schema_version` ni `department`.
-  - `AgroDataNormalized.municipioId` es `number`.
-  - `DataVersionRecord.etl_log_id` es `number` (no nullable).
-  - `EtlLogRecord` no incluye `records_rejected` ni `validation_report`.
-  - T02, T06, T09 y T10 deben alinearse a este contrato o abrir una tarea de revisión.
+- **Nota de implementación (refactor 2026-11-08):**
+  - `AgroTuple` tiene 8 números: `id_mun`, `id_cultivo`, `id_periodo`, `año`, `a_semb`, `a_cose`, `prod`, `rend`.
+  - `metadata` incluye `version`, `schema_version`, `updated_at` y `total_records`.
+  - `dicts` incluye `municipios`, `cultivos` y `periodos`.
+  - `AgroDataNormalized` incluye `periodo`.
+  - `DataVersionRecord` y `VersionMetadata` incluyen `schema_version`.
+  - `EtlLogRecord` incluye `records_rejected` y `validation_report`.
+  - `RawSocrataCurrent` usa las llaves reales de UPRA: `rea_sembrada`, `rea_cosechada`, `producci_n` y `rendimiento`.
+  - `fuente` no forma parte del contrato actual; si se requiere distinguir histórico/vigente, se debe agregar en una revisión posterior.
 
 ### T02 — Esquema D1
 
@@ -253,11 +266,10 @@ export interface CompressedAgroPayload {
   - `dicts.municipios`: array de `{ id, nombre }` único, ordenado por `id`.
   - `dicts.cultivos`: array de nombres único, ordenado alfabéticamente.
   - `dicts.periodos`: array único, ordenado cronológicamente.
-  - `dicts.fuentes`: `["historico", "vigente"]` en orden fijo.
-  - `data`: tuplas `[municipioIdx, cultivoIdx, anio, periodoIdx, fuenteIdx, areaSembrada, areaCosechada, produccion, rendimiento]`.
+  - `data`: tuplas `[municipioIdx, cultivoIdx, periodoIdx, anio, areaSembrada, areaCosechada, produccion, rendimiento]`.
   - Diccionarios deterministas para que el hash sea estable.
 - **Criterios de aceptación:**
-  - El payload incluye `periodo` y `fuente` en cada registro.
+  - El payload incluye `periodo` en cada registro.
   - No se pierden registros semestrales (`2019A`, `2019B`).
   - Entrada vacía produce un payload válido con diccionarios y data vacíos.
   - Pruebas de determinismo: mismo input produce mismo output.
