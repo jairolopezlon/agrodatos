@@ -1,0 +1,24 @@
+{
+  "name": "agrodatos",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.29.1",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "run-p dev:worker dev:frontend",
+    "dev:frontend": "pnpm --filter @agrodatos/frontend dev",
+    "dev:worker": "pnpm --filter @agrodatos/worker-etl dev",
+    "build": "run-p build:worker build:frontend",
+    "build:frontend": "pnpm --filter @agrodatos/frontend build",
+    "build:worker": "pnpm --filter @agrodatos/worker-etl build",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r exec rm -rf dist node_modules/.vite"
+  },
+  "devDependencies": {
+    "npm-run-all2": "^9.0.4"
+  }
+}
