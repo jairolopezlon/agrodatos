@@ -2,10 +2,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { AdminPage } from "./components/AdminPage";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import "./styles.css";
 
 const queryClient = new QueryClient();
+const isAdminRoute = window.location.pathname.startsWith("/admin");
 
 const rootElement = document.getElementById("root");
 
@@ -17,7 +19,7 @@ createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <UpdatePrompt />
-      <App />
+      {isAdminRoute ? <AdminPage /> : <App />}
     </QueryClientProvider>
   </StrictMode>,
 );

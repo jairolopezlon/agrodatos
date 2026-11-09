@@ -105,3 +105,65 @@ header p {
   padding: 0.5rem 0.75rem;
   cursor: pointer;
 }
+
+.admin-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-form label {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.admin-form input {
+  padding: 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+}
+
+.admin-form button {
+  padding: 0.6rem 0.9rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #166534;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.admin-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-note {
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.admin-status {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #ffffff;
+}
+
+.admin-logs table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+.admin-logs th,
+.admin-logs td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}

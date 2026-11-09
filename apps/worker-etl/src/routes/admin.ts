@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { createEtlLog, getEtlLog } from "../db/repositories";
+import {
+  createEtlLog,
+  getEtlLog,
+  listEtlLogs,
+} from "../db/repositories";
 import { runEtlWithLog } from "../etl/run";
 import type { Env } from "../index";
 
@@ -55,6 +59,19 @@ adminRoutes.post("/admin/trigger", async (c) => {
   c.executionCtx.waitUntil(runEtlWithLog(c.env, etlLogId));
 
   return c.json({ etl_log_id: etlLogId, status: "RUNNING" }, 202);
+});
+
+adminRoutes.get("/admin/etl", async (c) => {
+  const unauthorized = await requireAdmin(c);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
+  const limit = Number(c.req.query("limit") ?? "20");
+  const logs = await listEtlLogs(c.env, Number.isFinite(limit) ? limit : 20);
+
+  return c.json(logs);
 });
 
 adminRoutes.get("/admin/etl/:id", async (c) => {

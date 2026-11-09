@@ -17,6 +17,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Ola 4 implementada: versionado/hash/gzip y API pública.
 - Ola 5 completa: orquestador ETL y cliente offline implementados.
 - Ola 6 completa: cron, PWA y visualización implementados.
+- Ola 7 parcial: vista admin implementada; faltan pruebas (T17).
 
 ---
 
@@ -83,7 +84,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** Ola 7 (T16 + T17).
+**Próxima ola a ejecutar:** T17 (pruebas y smoke tests) — Ola 7.
 
 ---
 
@@ -107,7 +108,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T13 | Cliente frontend + Dexie | D. Frontend offline | T11 | 5 | Hecho |
 | T14 | PWA y sincronización offline | D. Frontend offline | T13 | 6 | Hecho |
 | T15 | Visualización de datos (Chart.js) | D. Frontend offline | T13 | 6 | Hecho |
-| T16 | Vista Admin y UI del Trigger ETL | D. Frontend offline | T12, T13 | 7 | Pendiente |
+| T16 | Vista Admin y UI del Trigger ETL | D. Frontend offline | T12, T13 | 7 | Hecho |
 | T17 | Pruebas y smoke tests | C. API y automatización | T06, T07, T08, T09, T10, T11 | 7 | Pendiente |
 | T18 | Despliegue y CI/CD | E. Operación | T14, T16, T17 | 8 | Pendiente |
 
@@ -481,7 +482,7 @@ export interface CompressedAgroPayload {
 
 ### T16 — Vista Admin y UI del Trigger ETL
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T12, T13.
 - **Ola:** 7.
 - **Descripción:** crear la ruta `/admin` para disparar el ETL y consultar su estado.
@@ -493,6 +494,7 @@ export interface CompressedAgroPayload {
   - Visualización de estado, registros extraídos, rechazados, duración y error.
   - Tabla con los últimos logs del ETL.
   - Nota de seguridad: para producción se recomienda Cloudflare Access sobre `/admin` y `/api/admin/*`.
+- **Notas:** `main.tsx` enruta `/admin` a `AdminPage`. La clave vive solo en estado React; el trigger usa Bearer, el polling es cada 2.5 s y la tabla consume el nuevo `GET /api/admin/etl?limit=20` (protegido). Probado el listado: 401 sin token y 200 con token. `typecheck` y `build` pasan.
 
 ---
 
