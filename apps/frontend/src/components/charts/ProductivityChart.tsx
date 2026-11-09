@@ -55,7 +55,7 @@ export function ProductivityChart({
       },
       y: {
         grid: { display: false },
-        ticks: { autoSkip: false, font: { size: 11 } },
+        ticks: { autoSkip: false, font: { size: 12 } },
       },
     },
   };

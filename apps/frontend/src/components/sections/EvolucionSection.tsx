@@ -29,7 +29,7 @@ export function EvolucionSection({
       <div className="chart-grid">
         <HarvestChart
           data={data.harvest}
-          selectedYear={data.selectedYear}
+          periodLabel={data.periodLabel}
           onResetFilters={onResetFilters}
         />
         <SemestralChart

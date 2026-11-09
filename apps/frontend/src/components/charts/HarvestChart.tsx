@@ -14,13 +14,13 @@ import { ChartCard } from "../ChartCard";
 
 interface HarvestChartProps {
   data: AggregatedChartData<HarvestAggregate>;
-  selectedYear: number;
+  periodLabel: string;
   onResetFilters: () => void;
 }
 
 export function HarvestChart({
   data,
-  selectedYear,
+  periodLabel,
   onResetFilters,
 }: HarvestChartProps) {
   const chartData: ChartData<"bar"> = {
@@ -60,7 +60,7 @@ export function HarvestChart({
       },
       y: {
         grid: { display: false },
-        ticks: { autoSkip: false, font: { size: 11 } },
+        ticks: { autoSkip: false, font: { size: 12 } },
       },
     },
   };
@@ -72,7 +72,7 @@ export function HarvestChart({
       footnote={data.footnote}
       empty={data.items.length === 0}
       onResetFilters={onResetFilters}
-      chartAriaLabel={`Porcentaje del área sembrada que se cosecha en ${selectedYear}`}
+      chartAriaLabel={`Porcentaje del área sembrada que se cosecha en ${periodLabel}`}
       table={{
         columns: [
           "Cultivo",

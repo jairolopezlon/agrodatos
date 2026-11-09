@@ -1,7 +1,11 @@
 import type { ChartData, ChartOptions } from "chart.js";
-import { Doughnut } from "react-chartjs-2";
+import { Bar } from "react-chartjs-2";
 import type { CompositionData } from "../../lib/aggregations";
-import { formatPercent, formatProduction } from "../../lib/format";
+import {
+  formatCompact,
+  formatPercent,
+  formatProduction,
+} from "../../lib/format";
 import { truncateLabel } from "../../lib/text";
 import { ChartCard } from "../ChartCard";
 
@@ -23,39 +27,53 @@ export function CompositionChart({
   data,
   onResetFilters,
 }: CompositionChartProps) {
-  const chartData: ChartData<"doughnut"> = {
-    labels: data.items.map((item) => truncateLabel(item.label)),
+  const chartData: ChartData<"bar"> = {
+    labels: data.items.map((item) => truncateLabel(item.label, 26)),
     datasets: [
       {
+        label: "Producción",
         data: data.items.map((item) => item.production),
-        backgroundColor: COLORS.slice(0, data.items.length),
-        borderColor: "#ffffff",
-        borderWidth: 2,
+        backgroundColor: data.items.map((item, index) =>
+          item.key === "otros"
+            ? "#94a3b8"
+            : COLORS[index % COLORS.length],
+        ),
+        borderRadius: 4,
       },
     ],
   };
 
-  const options: ChartOptions<"doughnut"> = {
+  const options: ChartOptions<"bar"> = {
+    indexAxis: "y",
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        position: "bottom",
-        labels: {
-          boxWidth: 12,
-          padding: 12,
-          font: { size: 11 },
-        },
-      },
+      legend: { display: false },
       tooltip: {
         callbacks: {
+          title: (context) =>
+            data.items[context[0]?.dataIndex ?? 0]?.label ?? "",
           label: (context) => {
             const item = data.items[context.dataIndex];
+
             return item
-              ? `${item.label}: ${formatProduction(item.production)} (${formatPercent(item.share)})`
+              ? `${formatProduction(item.production)} (${formatPercent(item.share)})`
               : "";
           },
         },
+      },
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: {
+          callback: (value) => formatCompact(Number(value)),
+        },
+        title: { display: true, text: "Toneladas" },
+      },
+      y: {
+        grid: { display: false },
+        ticks: { autoSkip: false, font: { size: 12 } },
       },
     },
   };
@@ -67,7 +85,7 @@ export function CompositionChart({
       footnote={data.footnote}
       empty={data.items.length === 0}
       onResetFilters={onResetFilters}
-      chartAriaLabel={`Composición de la producción por ${data.dimensionLabel.toLowerCase()}`}
+      chartAriaLabel={`Distribución de la producción por ${data.dimensionLabel.toLowerCase()}`}
       table={{
         columns: [data.dimensionLabel, "Producción", "Participación"],
         rows: data.items.map((item) => [
@@ -77,7 +95,7 @@ export function CompositionChart({
         ]),
       }}
     >
-      <Doughnut data={chartData} options={options} />
+      <Bar data={chartData} options={options} />
     </ChartCard>
   );
 }

@@ -1,21 +1,16 @@
 import type { DashboardData } from "../../lib/aggregations";
-import type { FilterState } from "../Filters";
 import { OtherCropsChart } from "../charts/OtherCropsChart";
 import { ProductivityChart } from "../charts/ProductivityChart";
 
 interface CultivosSectionProps {
   data: DashboardData;
-  filters: FilterState;
   onResetFilters: () => void;
 }
 
 export function CultivosSection({
   data,
-  filters,
   onResetFilters,
 }: CultivosSectionProps) {
-  const cropSelected = filters.cultivo !== "all";
-
   return (
     <section
       id="cultivos"
@@ -34,13 +29,7 @@ export function CultivosSection({
       <div className="chart-grid">
         <OtherCropsChart
           data={data.otherCrops}
-          selectedYear={data.selectedYear}
-          empty={cropSelected}
-          emptyMessage={
-            cropSelected
-              ? "Estás viendo un cultivo específico. Limpia el filtro para comparar con otros cultivos."
-              : "No hay datos para esta selección."
-          }
+          periodLabel={data.periodLabel}
           onResetFilters={onResetFilters}
         />
         <ProductivityChart

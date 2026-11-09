@@ -28,7 +28,7 @@ export function MunicipiosSection({
       <div className="chart-grid chart-grid-single">
         <MunicipalityChart
           data={data.municipalities}
-          selectedYear={data.selectedYear}
+          periodLabel={data.periodLabel}
           onResetFilters={onResetFilters}
         />
       </div>

@@ -12,6 +12,7 @@ interface ChartCardProps {
   table?: ChartTable;
   empty?: boolean;
   emptyMessage?: string;
+  error?: string;
   onResetFilters?: () => void;
   footnote?: string;
   chartAriaLabel: string;
@@ -25,6 +26,7 @@ export function ChartCard({
   table,
   empty = false,
   emptyMessage = "No hay datos para los filtros seleccionados.",
+  error,
   onResetFilters,
   footnote,
   chartAriaLabel,
@@ -44,7 +46,7 @@ export function ChartCard({
           {insight && <p className="chart-insight">{insight}</p>}
         </div>
 
-        {table && !empty && (
+        {table && !empty && !error && (
           <button
             type="button"
             className="chart-table-toggle"
@@ -56,9 +58,28 @@ export function ChartCard({
         )}
       </div>
 
-      {empty ? (
-        <div className="empty-state">
-          <p>{emptyMessage}</p>
+      {error ? (
+        <div className="chart-error" role="alert">
+          <p className="chart-state-title">
+            No se pudo mostrar este gráfico
+          </p>
+          <p className="chart-state-message">{error}</p>
+          {onResetFilters && (
+            <button
+              type="button"
+              className="button-secondary filter-reset"
+              onClick={onResetFilters}
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      ) : empty ? (
+        <div className="empty-state" role="status">
+          <p className="chart-state-title">
+            Sin resultados para esta selección
+          </p>
+          <p className="chart-state-message">{emptyMessage}</p>
           {onResetFilters && (
             <button
               type="button"

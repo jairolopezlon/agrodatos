@@ -6,9 +6,9 @@ import {
 } from "./format.ts";
 
 export interface DashboardFilters {
-  municipio: string;
-  cultivo: string;
-  anio: string;
+  municipios: string[];
+  cultivos: string[];
+  anios: string[];
 }
 
 export interface DashboardOptions {
@@ -93,9 +93,20 @@ export interface ProductivityData extends ChartData<YieldAggregate> {
   dimensionLabel: string;
 }
 
+export interface TrendSeries {
+  key: string;
+  label: string;
+  items: YearAggregate[];
+}
+
+export interface TrendData extends ChartData<YearAggregate> {
+  series: TrendSeries[];
+  multipleCrops: boolean;
+}
+
 export interface KpiData {
   productionValue: number;
-  productionYear: number;
+  periodLabel: string;
   isPartialYear: boolean;
   growth: number | null;
   topCrop: CropAggregate | null;
@@ -105,18 +116,19 @@ export interface KpiData {
   municipalityShare: number | null;
   averageYield: number | null;
   totalAreaSown: number;
-  selectedCrop: string | null;
-  selectedMunicipality: string | null;
+  selectedCrops: string[];
+  selectedMunicipalities: string[];
   hideCane: boolean;
 }
 
 export interface DashboardData {
-  selectedYear: number;
+  selectedYears: number[];
   latestYear: number;
   isPartialYear: boolean;
+  periodLabel: string;
   kpis: KpiData;
   composition: CompositionData;
-  productionByYear: ChartData<YearAggregate>;
+  productionByYear: TrendData;
   otherCrops: ChartData<CropAggregate>;
   productivity: ProductivityData;
   municipalities: ChartData<MunicipalityAggregate>;
@@ -173,7 +185,15 @@ interface HarvestEntry {
   areaHarvested: number;
 }
 
+interface ResolvedPeriod {
+  years: number[];
+  label: string;
+  isPartial: boolean;
+}
+
 const CANE_CROPS = new Set(["CAÑA", "CAÑA AZUCARERA"]);
+const COMPARABLE_FROM = 2007;
+const COMPARABLE_TO = 2025;
 const rowCache = new WeakMap<CompressedAgroPayload, Row[]>();
 
 function isCane(row: Row): boolean {
@@ -246,21 +266,27 @@ export function getRows(payload: CompressedAgroPayload): Row[] {
   return rows;
 }
 
+function numericSet(values: string[]): Set<number> | null {
+  if (values.length === 0) {
+    return null;
+  }
+
+  return new Set(values.map(Number));
+}
+
 export function filterRows(
   rows: Row[],
   filters: DashboardFilters,
 ): Row[] {
-  const municipioIdx =
-    filters.municipio === "all" ? null : Number(filters.municipio);
-  const cultivoIdx =
-    filters.cultivo === "all" ? null : Number(filters.cultivo);
-  const anio = filters.anio === "all" ? null : Number(filters.anio);
+  const municipioSet = numericSet(filters.municipios);
+  const cultivoSet = numericSet(filters.cultivos);
+  const anioSet = numericSet(filters.anios);
 
   return rows.filter(
     (row) =>
-      (municipioIdx === null || row.municipioIdx === municipioIdx) &&
-      (cultivoIdx === null || row.cultivoIdx === cultivoIdx) &&
-      (anio === null || row.anio === anio),
+      (municipioSet === null || municipioSet.has(row.municipioIdx)) &&
+      (cultivoSet === null || cultivoSet.has(row.cultivoIdx)) &&
+      (anioSet === null || anioSet.has(row.anio)),
   );
 }
 
@@ -357,9 +383,10 @@ export function aggregateCrops(
 export function aggregateMunicipalities(
   rows: Row[],
   totalProduction = sumProduction(rows),
-  selectedMunicipality: string | null = null,
+  selectedMunicipalities: string[] = [],
 ): MunicipalityAggregate[] {
   const map = new Map<string, MunicipalityEntry>();
+  const selected = new Set(selectedMunicipalities);
 
   for (const row of rows) {
     const entry =
@@ -392,15 +419,15 @@ export function aggregateMunicipalities(
           ? (entry.production / totalProduction) * 100
           : 0,
       crops: entry.crops.size,
-      selected: entry.label === selectedMunicipality,
+      selected: selected.has(entry.label),
     }))
     .sort((a, b) => b.production - a.production);
 }
 
 export function aggregateYears(
   rows: Row[],
-  from = 2007,
-  to = 2025,
+  from = COMPARABLE_FROM,
+  to = COMPARABLE_TO,
 ): YearAggregate[] {
   const byYear = new Map<number, Row[]>();
 
@@ -449,8 +476,10 @@ export function aggregateYears(
 }
 
 export function computeGrowth(series: YearAggregate[]): number | null {
-  const first = series.find((item) => item.year === 2007)?.production ?? null;
-  const last = series.find((item) => item.year === 2025)?.production ?? null;
+  const first =
+    series.find((item) => item.year === COMPARABLE_FROM)?.production ?? null;
+  const last =
+    series.find((item) => item.year === COMPARABLE_TO)?.production ?? null;
 
   if (first === null || last === null || first <= 0) {
     return null;
@@ -559,6 +588,52 @@ export function aggregateSemestral(rows: Row[]): SemestralAggregate[] {
     .map(([year, entry]) => ({ year, ...entry }));
 }
 
+function resolvePeriod(selectedYears: string[]): ResolvedPeriod {
+  const years = [...new Set(selectedYears.map(Number))]
+    .filter((year) => Number.isFinite(year))
+    .sort((a, b) => a - b);
+
+  if (years.length === 0) {
+    const comparable: number[] = [];
+
+    for (let year = COMPARABLE_FROM; year <= COMPARABLE_TO; year += 1) {
+      comparable.push(year);
+    }
+
+    return {
+      years: comparable,
+      label: `Totalidad de años (${COMPARABLE_FROM}–${COMPARABLE_TO})`,
+      isPartial: false,
+    };
+  }
+
+  if (years.length === 1) {
+    return {
+      years,
+      label: String(years[0]),
+      isPartial: years[0] === 2006,
+    };
+  }
+
+  return {
+    years,
+    label: `${years.length} años seleccionados`,
+    isPartial: years.includes(2006),
+  };
+}
+
+function joinLabels(labels: string[], max = 3): string {
+  if (labels.length === 0) {
+    return "";
+  }
+
+  if (labels.length <= max) {
+    return labels.join(", ");
+  }
+
+  return `${labels.slice(0, max).join(", ")} y ${labels.length - max} más`;
+}
+
 function buildSlices(
   groups: Array<{
     key: string;
@@ -594,9 +669,9 @@ function buildSlices(
 function buildComposition(
   rows: Row[],
   allRows: Row[],
-  selectedCrop: string | null,
-  selectedMunicipality: string | null,
-  selectedYear: number,
+  selectedCrops: string[],
+  selectedMunicipalities: string[],
+  periodLabel: string,
   hideCane: boolean,
 ): CompositionData {
   const total = sumProduction(rows);
@@ -605,7 +680,12 @@ function buildComposition(
     allTotal > 0
       ? (sumProduction(allRows.filter(isCane)) / allTotal) * 100
       : 0;
-  const dimension = selectedCrop ? "municipio" : "cultivo";
+  const singleCrop = selectedCrops.length === 1 ? selectedCrops[0] : null;
+  const multipleCrops = selectedCrops.length > 1;
+  const singleMunicipality =
+    selectedMunicipalities.length === 1 ? selectedMunicipalities[0] : null;
+  const dimension =
+    singleCrop !== null ? "municipio" : "cultivo";
   const groups =
     dimension === "municipio"
       ? aggregateMunicipalities(rows, total)
@@ -620,38 +700,66 @@ function buildComposition(
     allRows.filter((row) => !isCane(row)),
   ).slice(0, 2);
 
-  if (dimension === "municipio") {
+  if (singleCrop !== null) {
     return {
       dimension,
       dimensionLabel: "Municipio",
-      title: `¿Dónde se produce ${selectedCrop}?`,
+      title: `¿Dónde se produce ${singleCrop}?`,
       insight: top1
-        ? `El ${formatPercent(top3Share)} de ${selectedCrop} se produce en ${top1.label}${top2 ? `, ${top2.label}` : ""}${top3 ? ` y ${top3.label}` : ""}.`
+        ? `El ${formatPercent(top3Share)} de ${singleCrop} se produce en ${top1.label}${top2 ? `, ${top2.label}` : ""}${top3 ? ` y ${top3.label}` : ""}.`
         : "No hay datos para esta selección.",
-      footnote: `Participación dentro de ${selectedCrop} · ${selectedYear}.`,
+      footnote: `${periodLabel}. Participación dentro de ${singleCrop}.`,
       items: slices,
     };
   }
 
-  if (selectedMunicipality) {
+  if (multipleCrops) {
+    const cropLabel = joinLabels(selectedCrops, 4);
+
+    return {
+      dimension,
+      dimensionLabel: "Cultivo",
+      title: "¿Cómo se reparten los cultivos seleccionados?",
+      insight: top1
+        ? `${top1.label} concentra el ${formatPercent(top1.share)} de la producción de ${cropLabel} (${periodLabel}).`
+        : "No hay datos para esta selección.",
+      footnote: `${periodLabel}. Comparación entre los ${selectedCrops.length} cultivos seleccionados.`,
+      items: slices,
+    };
+  }
+
+  if (singleMunicipality !== null) {
     const insight = hideCane
       ? top1
         ? `Sin caña, ${top1.label} representa el ${formatPercent(top1.share)} de la producción. Le siguen ${top2?.label ?? "otros cultivos"}.`
         : "No hay datos para esta selección."
       : caneShare > 0
-        ? `La caña representa el ${formatPercent(caneShare)} de la producción de ${selectedMunicipality}. Sin caña, ${nonCaneTop[0]?.label ?? "otros cultivos"} lidera.`
+        ? `La caña representa el ${formatPercent(caneShare)} de la producción de ${singleMunicipality}. Sin caña, ${nonCaneTop[0]?.label ?? "otros cultivos"} lidera.`
         : top1
-          ? `En ${selectedMunicipality}, ${top1.label} representa el ${formatPercent(top1.share)} de la producción.`
+          ? `En ${singleMunicipality}, ${top1.label} representa el ${formatPercent(top1.share)} de la producción.`
           : "No hay datos para esta selección.";
 
     return {
       dimension,
       dimensionLabel: "Cultivo",
-      title: `¿Qué produce ${selectedMunicipality}?`,
+      title: `¿Qué produce ${singleMunicipality}?`,
       insight,
       footnote: hideCane
-        ? `Año ${selectedYear}. Vista sin caña.`
-        : `Año ${selectedYear}.`,
+        ? `${periodLabel}. Vista sin caña.`
+        : `${periodLabel}.`,
+      items: slices,
+    };
+  }
+
+  if (selectedMunicipalities.length > 1) {
+    return {
+      dimension,
+      dimensionLabel: "Cultivo",
+      title: "¿Qué cultivos producen los municipios seleccionados?",
+      insight: top1
+        ? `En ${periodLabel}, ${top1.label}, ${top2?.label ?? "otros"} y ${top3?.label ?? "otros"} concentran el ${formatPercent(top3Share)} de la producción de los ${selectedMunicipalities.length} municipios seleccionados.`
+        : "No hay datos para esta selección.",
+      footnote: `${selectedMunicipalities.length} municipios seleccionados · ${periodLabel}.`,
       items: slices,
     };
   }
@@ -672,38 +780,56 @@ function buildComposition(
     title: "¿Qué cultivos concentran la producción?",
     insight,
     footnote: hideCane
-      ? `Año ${selectedYear}. Vista sin caña.`
-      : `Año ${selectedYear}. La caña incluye caña azucarera y caña panelera.`,
+      ? `${periodLabel}. Vista sin caña.`
+      : `${periodLabel}. La caña incluye caña azucarera y caña panelera.`,
     items: slices,
   };
 }
 
 function buildOtherCrops(
   rows: Row[],
-  selectedYear: number,
-  selectedMunicipality: string | null,
-  selectedCrop: string | null,
+  periodLabel: string,
+  selectedMunicipalities: string[],
+  selectedCrops: string[],
 ): ChartData<CropAggregate> {
-  const items = aggregateCrops(rows).slice(0, 10);
+  const comparisonRows =
+    selectedCrops.length > 0
+      ? rows.filter((row) => !selectedCrops.includes(row.cultivo))
+      : rows;
+  const items = aggregateCrops(comparisonRows).slice(0, 10);
   const top = items.slice(0, 3).map((item) => item.label);
+  const municipalityLabel =
+    selectedMunicipalities.length === 1
+      ? ` en ${selectedMunicipalities[0]}`
+      : selectedMunicipalities.length > 1
+        ? " en los municipios seleccionados"
+        : "";
   let insight: string;
 
-  if (selectedCrop !== null) {
-    insight = `Estás viendo ${selectedCrop}. Quita el filtro de cultivo para comparar con otros cultivos.`;
-  } else if (top.length === 0) {
-    insight = "No hay datos para esta selección.";
+  if (top.length === 0) {
+    insight =
+      selectedCrops.length > 0
+        ? "No quedan otros cultivos sin caña para comparar con la selección."
+        : "No hay datos para esta selección.";
+  } else if (selectedCrops.length > 0) {
+    insight =
+      top.length === 1
+        ? `Sin contar los cultivos seleccionados, ${top[0]} lidera la producción en ${periodLabel}${municipalityLabel}.`
+        : top.length === 2
+          ? `Sin contar los cultivos seleccionados, ${top[0]} y ${top[1]} lideran la producción en ${periodLabel}${municipalityLabel}.`
+          : `Sin contar los cultivos seleccionados, ${top[0]}, ${top[1]} y ${top[2]} lideran la producción en ${periodLabel}${municipalityLabel}.`;
   } else if (top.length === 1) {
-    insight = `Sin caña, ${top[0]} lidera la producción en ${selectedYear}${selectedMunicipality ? ` en ${selectedMunicipality}` : ""}.`;
+    insight = `Sin caña, ${top[0]} lidera la producción en ${periodLabel}${municipalityLabel}.`;
   } else if (top.length === 2) {
-    insight = `Sin caña, ${top[0]} y ${top[1]} lideran la producción en ${selectedYear}${selectedMunicipality ? ` en ${selectedMunicipality}` : ""}.`;
+    insight = `Sin caña, ${top[0]} y ${top[1]} lideran la producción en ${periodLabel}${municipalityLabel}.`;
   } else {
-    insight = `Sin caña, ${top[0]}, ${top[1]} y ${top[2]} lideran la producción en ${selectedYear}${selectedMunicipality ? ` en ${selectedMunicipality}` : ""}.`;
+    insight = `Sin caña, ${top[0]}, ${top[1]} y ${top[2]} lideran la producción en ${periodLabel}${municipalityLabel}.`;
   }
 
   return {
     title: "¿Qué otros cultivos producen más?",
     insight,
-    footnote: `Sin caña · ${selectedYear}`,
+    footnote: `Sin caña · ${periodLabel}`,
     items,
   };
 }
@@ -725,30 +851,54 @@ function productivityInsight(
 
 function buildProductivity(
   rows: Row[],
-  selectedCrop: string | null,
-  selectedMunicipality: string | null,
-  selectedYear: number,
+  selectedCrops: string[],
+  selectedMunicipalities: string[],
+  periodLabel: string,
 ): ProductivityData {
-  if (selectedCrop) {
+  if (selectedCrops.length === 1) {
+    const crop = selectedCrops[0];
     const items = aggregateProductivity(rows, "municipio");
     const insight = productivityInsight(
-      `Entre los principales productores de ${selectedCrop},`,
+      `Entre los principales productores de ${crop},`,
       items,
     );
 
     return {
       dimension: "municipio",
       dimensionLabel: "Municipio",
-      title: `¿Dónde se produce más ${selectedCrop} por hectárea?`,
+      title: `¿Dónde se produce más ${crop} por hectárea?`,
       insight,
-      footnote: `${selectedYear} · solo los 10 principales por producción`,
+      footnote: `${periodLabel} · solo los 10 principales por producción`,
+      items,
+    };
+  }
+
+  if (selectedCrops.length > 1) {
+    const items = aggregateProductivity(rows, "cultivo");
+    const insight = productivityInsight(
+      "Entre los cultivos seleccionados,",
+      items,
+    );
+
+    return {
+      dimension: "cultivo",
+      dimensionLabel: "Cultivo",
+      title: "¿Qué cultivos seleccionados producen más por hectárea?",
+      insight,
+      footnote: `${periodLabel} · ${selectedCrops.length} cultivos seleccionados`,
       items,
     };
   }
 
   const items = aggregateProductivity(rows, "cultivo");
+  const municipalityLabel =
+    selectedMunicipalities.length === 1
+      ? ` de ${selectedMunicipalities[0]}`
+      : selectedMunicipalities.length > 1
+        ? " de los municipios seleccionados"
+        : "";
   const insight = productivityInsight(
-    `Entre los cultivos principales${selectedMunicipality ? ` de ${selectedMunicipality}` : ""},`,
+    `Entre los cultivos principales${municipalityLabel},`,
     items,
   );
 
@@ -757,26 +907,58 @@ function buildProductivity(
     dimensionLabel: "Cultivo",
     title: "¿Qué cultivos producen más por hectárea?",
     insight,
-    footnote: `Sin caña · ${selectedYear} · solo los 10 principales por producción`,
+    footnote: `Sin caña · ${periodLabel} · solo los 10 principales por producción`,
     items,
   };
 }
 
 function buildMunicipalities(
   rows: Row[],
-  selectedYear: number,
-  selectedCrop: string | null,
-  selectedMunicipality: string | null,
+  periodLabel: string,
+  selectedCrops: string[],
+  selectedMunicipalities: string[],
 ): ChartData<MunicipalityAggregate> {
   const all = aggregateMunicipalities(
     rows,
     sumProduction(rows),
-    selectedMunicipality,
+    selectedMunicipalities,
   );
+  const cropLabel =
+    selectedCrops.length === 1
+      ? ` de ${selectedCrops[0]}`
+      : selectedCrops.length > 1
+        ? " de los cultivos seleccionados"
+        : "";
+  let items: MunicipalityAggregate[];
+  let title: string;
+  let insight: string;
+  let footnote: string;
+
+  if (selectedMunicipalities.length > 1) {
+    items = all.filter((item) => item.selected);
+    title = "Comparación de municipios seleccionados";
+
+    if (items.length === 0) {
+      insight = "No hay datos para esta selección.";
+    } else if (items.length === 1) {
+      insight = `En ${periodLabel}, ${items[0].label} produce ${formatProduction(items[0].production)} (${formatPercent(items[0].share)} del total${cropLabel}).`;
+    } else {
+      insight = `En ${periodLabel}, ${items[0].label} produce ${formatProduction(items[0].production)} (${formatPercent(items[0].share)}) y ${items[1].label} produce ${formatProduction(items[1].production)} (${formatPercent(items[1].share)})${cropLabel}.`;
+    }
+
+    footnote =
+      items.length < selectedMunicipalities.length
+        ? "Solo se muestran los municipios seleccionados con datos para el periodo."
+        : `Comparación de ${items.length} municipios seleccionados · participación sobre el total departamental${cropLabel}.`;
+
+    return { title, insight, footnote, items };
+  }
+
   const top = all.slice(0, 10);
-  const selected = selectedMunicipality
-    ? all.find((item) => item.selected)
-    : undefined;
+  const selected =
+    selectedMunicipalities.length === 1
+      ? all.find((item) => item.selected)
+      : undefined;
 
   if (selected && !top.some((item) => item.selected)) {
     top.push(selected);
@@ -784,54 +966,60 @@ function buildMunicipalities(
 
   const top3 = top.slice(0, 3);
   const top3Share = top3.reduce((sum, item) => sum + item.share, 0);
-  const cropLabel = selectedCrop ? ` de ${selectedCrop}` : "";
-  let insight: string;
+  title = "¿Qué municipios producen más?";
 
-  if (selectedMunicipality) {
-    insight = selected
-      ? `En ${selectedYear}, ${selectedMunicipality} representa el ${formatPercent(selected.share)} del total${cropLabel}.`
-      : "No hay datos para esta selección.";
+  if (selected) {
+    insight = `En ${periodLabel}, ${selected.label} representa el ${formatPercent(selected.share)} del total${cropLabel}.`;
+    footnote = "El municipio seleccionado se resalta en ámbar.";
   } else if (top3.length === 0) {
     insight = "No hay datos para esta selección.";
+    footnote = `Producción en ${periodLabel}.`;
   } else if (top3.length === 1) {
-    insight = `En ${selectedYear}, ${top3[0].label} concentra el ${formatPercent(top3[0].share)} de la producción${cropLabel}.`;
+    insight = `En ${periodLabel}, ${top3[0].label} concentra el ${formatPercent(top3[0].share)} de la producción${cropLabel}.`;
+    footnote = `Producción en ${periodLabel}.`;
   } else if (top3.length === 2) {
-    insight = `En ${selectedYear}, ${top3[0].label} y ${top3[1].label} concentran el ${formatPercent(top3Share)} de la producción${cropLabel}.`;
+    insight = `En ${periodLabel}, ${top3[0].label} y ${top3[1].label} concentran el ${formatPercent(top3Share)} de la producción${cropLabel}.`;
+    footnote = `Producción en ${periodLabel}.`;
   } else {
-    insight = `En ${selectedYear}, ${top3[0].label}, ${top3[1].label} y ${top3[2].label} concentran el ${formatPercent(top3Share)} de la producción${cropLabel}.`;
+    insight = `En ${periodLabel}, ${top3[0].label}, ${top3[1].label} y ${top3[2].label} concentran el ${formatPercent(top3Share)} de la producción${cropLabel}.`;
+    footnote = `Producción en ${periodLabel}.`;
   }
 
-  return {
-    title: "¿Qué municipios producen más?",
-    insight,
-    footnote: selectedMunicipality
-      ? "El municipio seleccionado se resalta en ámbar."
-      : `Producción en ${selectedYear}.`,
-    items: top,
-  };
+  return { title, insight, footnote, items: top };
 }
 
 function buildHarvest(
   rows: Row[],
-  selectedYear: number,
-  selectedCrop: string | null,
-  selectedMunicipality: string | null,
+  periodLabel: string,
+  selectedCrops: string[],
+  selectedMunicipalities: string[],
 ): ChartData<HarvestAggregate> {
   const items = aggregateHarvest(rows);
   const top = items[0];
   const bottom = items[items.length - 1];
+  const municipalityLabel =
+    selectedMunicipalities.length === 1
+      ? ` en ${selectedMunicipalities[0]}`
+      : selectedMunicipalities.length > 1
+        ? " en los municipios seleccionados"
+        : "";
   let insight: string;
 
-  if (selectedCrop) {
+  if (selectedCrops.length === 1) {
     insight = top
-      ? `En ${selectedYear}, ${selectedCrop} cosechó el ${formatPercent(top.successRate)} del área sembrada.`
+      ? `En ${periodLabel}${municipalityLabel}, ${selectedCrops[0]} cosechó el ${formatPercent(top.successRate)} del área sembrada.`
       : "No hay datos para esta selección.";
+  } else if (selectedCrops.length > 1) {
+    insight =
+      top && bottom
+        ? `En ${periodLabel}${municipalityLabel}, los ${selectedCrops.length} cultivos seleccionados cosecharon entre ${formatPercent(bottom.successRate)} y ${formatPercent(top.successRate)} del área sembrada.`
+        : "No hay datos para esta selección.";
   } else if (!top) {
     insight = "No hay datos para esta selección.";
   } else if (items.length === 1) {
-    insight = `En ${selectedYear}${selectedMunicipality ? ` en ${selectedMunicipality}` : ""}, ${top.label} cosechó el ${formatPercent(top.successRate)} del área sembrada.`;
+    insight = `En ${periodLabel}${municipalityLabel}, ${top.label} cosechó el ${formatPercent(top.successRate)} del área sembrada.`;
   } else {
-    insight = `En ${selectedYear}${selectedMunicipality ? ` en ${selectedMunicipality}` : ""}, los cultivos principales cosechan entre ${formatPercent(bottom.successRate)} y ${formatPercent(top.successRate)} del área sembrada.`;
+    insight = `En ${periodLabel}${municipalityLabel}, los cultivos principales cosechan entre ${formatPercent(bottom.successRate)} y ${formatPercent(top.successRate)} del área sembrada.`;
   }
 
   return {
@@ -844,10 +1032,22 @@ function buildHarvest(
 
 function buildSemestral(
   rows: Row[],
-  selectedCrop: string | null,
-  selectedMunicipality: string | null,
+  selectedCrops: string[],
+  selectedMunicipalities: string[],
 ): ChartData<SemestralAggregate> {
   const items = aggregateSemestral(rows);
+  const cropLabel =
+    selectedCrops.length === 1
+      ? ` para ${selectedCrops[0]}`
+      : selectedCrops.length > 1
+        ? " para los cultivos seleccionados"
+        : "";
+  const municipalityLabel =
+    selectedMunicipalities.length === 1
+      ? ` en ${selectedMunicipalities[0]}`
+      : selectedMunicipalities.length > 1
+        ? " en los municipios seleccionados"
+        : "";
 
   if (items.length === 0) {
     return {
@@ -866,7 +1066,7 @@ function buildSemestral(
     const loserValue = Math.min(item.semA, item.semB);
     return {
       title: "¿Qué semestre produce más?",
-      insight: `En ${item.year}${selectedMunicipality ? ` en ${selectedMunicipality}` : ""}, el ${winner} fue mayor (${formatProduction(winnerValue)} frente a ${formatProduction(loserValue)}).`,
+      insight: `En ${item.year}${municipalityLabel}, el ${winner} fue mayor (${formatProduction(winnerValue)} frente a ${formatProduction(loserValue)})${cropLabel}.`,
       footnote: "Solo cultivos con reporte semestral (2019–2025).",
       items,
     };
@@ -876,10 +1076,10 @@ function buildSemestral(
   const firstGreater = items.filter((item) => item.semA > item.semB).length;
   const insight =
     secondGreater === firstGreater
-      ? `Entre 2019 y 2025 no hay una diferencia clara entre semestres${selectedCrop ? ` para ${selectedCrop}` : ""}.`
+      ? `Entre 2019 y 2025 no hay una diferencia clara entre semestres${cropLabel}${municipalityLabel}.`
       : secondGreater > firstGreater
-        ? `Entre 2019 y 2025, el segundo semestre fue mayor en ${secondGreater} de ${items.length} años${selectedCrop ? ` para ${selectedCrop}` : ""}.`
-        : `Entre 2019 y 2025, el primer semestre fue mayor en ${firstGreater} de ${items.length} años${selectedCrop ? ` para ${selectedCrop}` : ""}.`;
+        ? `Entre 2019 y 2025, el segundo semestre fue mayor en ${secondGreater} de ${items.length} años${cropLabel}${municipalityLabel}.`
+        : `Entre 2019 y 2025, el primer semestre fue mayor en ${firstGreater} de ${items.length} años${cropLabel}${municipalityLabel}.`;
 
   return {
     title: "¿Qué semestre produce más?",
@@ -889,29 +1089,94 @@ function buildSemestral(
   };
 }
 
+function buildTrend(
+  rows: Row[],
+  selectedCrops: string[],
+  cropIndices: number[],
+  hideCane: boolean,
+  growth: number | null,
+): TrendData {
+  const multipleCrops = selectedCrops.length > 1;
+  const totalItems = aggregateYears(rows);
+  const series: TrendSeries[] = multipleCrops
+    ? selectedCrops.map((label, position) => {
+        const index = cropIndices[position];
+        const cropRows = rows.filter((row) => row.cultivoIdx === index);
+
+        return {
+          key: String(index),
+          label,
+          items: aggregateYears(cropRows),
+        };
+      })
+    : [
+        {
+          key: "total",
+          label:
+            selectedCrops.length === 1 ? selectedCrops[0] : "Producción",
+          items: totalItems,
+        },
+      ];
+  const title = multipleCrops
+    ? `Evolución anual de ${joinLabels(selectedCrops, 2)}`
+    : selectedCrops.length === 1
+      ? `Evolución anual de ${selectedCrops[0]}`
+      : hideCane
+        ? "Evolución anual de la producción sin caña"
+        : "Evolución anual de la producción";
+  const growthInsight =
+    growth === null
+      ? "No hay datos suficientes para comparar 2007 y 2025."
+      : `La producción ${hideCane && selectedCrops.length === 0 ? "sin caña " : ""}${growth >= 0 ? "creció" : "disminuyó"} ${formatPercent(Math.abs(growth))} entre 2007 y 2025.`;
+  const insight = multipleCrops
+    ? `Comparación 2007–2025 de ${selectedCrops.length} cultivos seleccionados; cada línea representa un cultivo.`
+    : growthInsight;
+
+  return {
+    title,
+    insight,
+    footnote: "2006 no se incluye en la tendencia: fue un reporte parcial piloto.",
+    items: totalItems,
+    series,
+    multipleCrops,
+  };
+}
+
 export function buildDashboardData(
   payload: CompressedAgroPayload,
   filters: DashboardFilters,
   options: DashboardOptions,
 ): DashboardData {
   const rows = getRows(payload);
-  const selectedMunicipality =
-    filters.municipio === "all"
-      ? null
-      : (payload.dicts.municipios[Number(filters.municipio)] ?? null);
-  const selectedCrop =
-    filters.cultivo === "all"
-      ? null
-      : (payload.dicts.cultivos[Number(filters.cultivo)] ?? null);
-  const selectionRows = filterRows(rows, { ...filters, anio: "all" });
+  const selectedMunicipalities = filters.municipios
+    .map((value) => payload.dicts.municipios[Number(value)])
+    .filter((label) => typeof label === "string");
+  const selectedCropEntries = filters.cultivos.map((value) => ({
+    index: Number(value),
+    label: payload.dicts.cultivos[Number(value)],
+  }));
+  const selectedCrops = selectedCropEntries
+    .map((entry) => entry.label)
+    .filter((label) => typeof label === "string");
+  const cropIndices = selectedCropEntries
+    .filter((entry) => typeof entry.label === "string")
+    .map((entry) => entry.index);
+  const period = resolvePeriod(filters.anios);
+  const isPartialYear = period.isPartial;
+  const periodYears = period.years.map(String);
   const latestYear =
-    selectionRows.reduce((max, row) => Math.max(max, row.anio), 0) || 2025;
-  const selectedYear =
-    filters.anio === "all" ? latestYear : Number(filters.anio);
-  const isPartialYear = selectedYear === 2006;
-  const yearFilter = String(selectedYear);
+    filterRows(rows, {
+      municipios: filters.municipios,
+      cultivos: filters.cultivos,
+      anios: [],
+    }).reduce((max, row) => Math.max(max, row.anio), 0) || COMPARABLE_TO;
+
   const selectedRowsAll = dedupeYearly(
-    filterRows(rows, { ...filters, anio: yearFilter }),
+    filterRows(rows, {
+      municipios: filters.municipios,
+      cultivos: filters.cultivos,
+      anios: periodYears,
+    }),
   );
   const selectedRows = options.hideCane
     ? selectedRowsAll.filter((row) => !isCane(row))
@@ -919,12 +1184,16 @@ export function buildDashboardData(
   const totalSelected = sumProduction(selectedRows);
   const totalSelectedAll = sumProduction(selectedRowsAll);
   const trendRows = dedupeYearly(
-    filterRows(rows, { ...filters, anio: "all" }),
+    filterRows(rows, {
+      municipios: filters.municipios,
+      cultivos: filters.cultivos,
+      anios: [],
+    }),
   );
   const trendRowsCane = options.hideCane
     ? trendRows.filter((row) => !isCane(row))
     : trendRows;
-  const productionByYearItems = aggregateYears(trendRowsCane, 2007, 2025);
+  const productionByYearItems = aggregateYears(trendRowsCane);
   const growth = computeGrowth(productionByYearItems);
   const topCrops = aggregateCrops(selectedRows, totalSelected);
   const topCropsAll = aggregateCrops(selectedRowsAll, totalSelectedAll);
@@ -933,25 +1202,26 @@ export function buildDashboardData(
     topCropsAll.filter((crop) => !CANE_CROPS.has(crop.label))[0] ?? null;
   const kpiRows = dedupeYearly(
     filterRows(rows, {
-      ...filters,
-      cultivo: "all",
-      anio: yearFilter,
+      municipios: filters.municipios,
+      cultivos: [],
+      anios: periodYears,
     }),
   );
   const kpiRowsCane = options.hideCane
     ? kpiRows.filter((row) => !isCane(row))
     : kpiRows;
   const kpiTotal = sumProduction(kpiRowsCane);
-  const topCropShare = selectedCrop
-    ? kpiTotal > 0
-      ? (totalSelected / kpiTotal) * 100
-      : null
-    : topCrop?.share ?? null;
+  const topCropShare =
+    selectedCrops.length > 0
+      ? kpiTotal > 0
+        ? (totalSelected / kpiTotal) * 100
+        : null
+      : topCrop?.share ?? null;
   const rankingRows = dedupeYearly(
     filterRows(rows, {
-      ...filters,
-      municipio: "all",
-      anio: yearFilter,
+      municipios: [],
+      cultivos: filters.cultivos,
+      anios: periodYears,
     }),
   );
   const rankingRowsCane = options.hideCane
@@ -961,20 +1231,19 @@ export function buildDashboardData(
   const municipalities = aggregateMunicipalities(
     rankingRowsCane,
     municipalityTotal,
-    selectedMunicipality,
+    selectedMunicipalities,
   );
-  const topMunicipality = municipalities[0] ?? null;
-  const selectedMunicipalityAggregate = selectedMunicipality
-    ? municipalities.find((item) => item.selected) ?? null
-    : null;
+  const selectedMunicipalityAggregate = municipalities.find(
+    (item) => item.selected,
+  );
   const kpiMunicipality =
-    selectedMunicipalityAggregate ?? topMunicipality;
+    selectedMunicipalityAggregate ?? municipalities[0] ?? null;
   const municipalityShare = kpiMunicipality?.share ?? null;
   const compositionRowsBase = dedupeYearly(
     filterRows(rows, {
-      municipio: selectedCrop ? "all" : filters.municipio,
-      cultivo: filters.cultivo,
-      anio: yearFilter,
+      municipios: selectedCrops.length === 1 ? [] : filters.municipios,
+      cultivos: filters.cultivos,
+      anios: periodYears,
     }),
   );
   const compositionRows = options.hideCane
@@ -983,64 +1252,69 @@ export function buildDashboardData(
   const composition = buildComposition(
     compositionRows,
     compositionRowsBase,
-    selectedCrop,
-    selectedMunicipality,
-    selectedYear,
+    selectedCrops,
+    selectedMunicipalities,
+    period.label,
     options.hideCane,
   );
+  const otherCropsRows = dedupeYearly(
+    filterRows(rows, {
+      municipios: filters.municipios,
+      cultivos: [],
+      anios: periodYears,
+    }),
+  ).filter((row) => !isCane(row));
   const otherCrops = buildOtherCrops(
-    selectedRowsAll.filter((row) => !isCane(row)),
-    selectedYear,
-    selectedMunicipality,
-    selectedCrop,
+    otherCropsRows,
+    period.label,
+    selectedMunicipalities,
+    selectedCrops,
   );
-  const productivityRows = selectedCrop
-    ? dedupeYearly(
-        filterRows(rows, {
-          municipio: "all",
-          cultivo: filters.cultivo,
-          anio: yearFilter,
-        }),
-      )
-    : selectedRowsAll.filter((row) => !isCane(row));
+  const productivityRows =
+    selectedCrops.length === 1
+      ? dedupeYearly(
+          filterRows(rows, {
+            municipios: [],
+            cultivos: filters.cultivos,
+            anios: periodYears,
+          }),
+        )
+      : selectedRows;
   const productivity = buildProductivity(
     productivityRows,
-    selectedCrop,
-    selectedMunicipality,
-    selectedYear,
+    selectedCrops,
+    selectedMunicipalities,
+    period.label,
   );
   const municipalitiesData = buildMunicipalities(
     rankingRowsCane,
-    selectedYear,
-    selectedCrop,
-    selectedMunicipality,
+    period.label,
+    selectedCrops,
+    selectedMunicipalities,
   );
   const harvest = buildHarvest(
     selectedRows,
-    selectedYear,
-    selectedCrop,
-    selectedMunicipality,
+    period.label,
+    selectedCrops,
+    selectedMunicipalities,
   );
   const semestral = buildSemestral(
     filterRows(rows, filters),
-    selectedCrop,
-    selectedMunicipality,
+    selectedCrops,
+    selectedMunicipalities,
   );
   const averageYield = weightedYield(selectedRows);
   const totalAreaSown = sumAreaSown(selectedRows);
   const productionValue = totalSelected;
-  const growthInsight =
-    growth === null
-      ? "No hay datos suficientes para comparar 2007 y 2025."
-      : `La producción ${options.hideCane ? "sin caña " : ""}${growth >= 0 ? "creció" : "disminuyó"} ${formatPercent(Math.abs(growth))} entre 2007 y 2025.`;
 
   return {
-    selectedYear,
+    selectedYears: filters.anios.map(Number),
     latestYear,
     isPartialYear,
+    periodLabel: period.label,
     kpis: {
       productionValue,
-      productionYear: selectedYear,
+      periodLabel: period.label,
       isPartialYear,
       growth,
       topCrop,
@@ -1050,19 +1324,18 @@ export function buildDashboardData(
       municipalityShare,
       averageYield,
       totalAreaSown,
-      selectedCrop,
-      selectedMunicipality,
+      selectedCrops,
+      selectedMunicipalities,
       hideCane: options.hideCane,
     },
     composition,
-    productionByYear: {
-      title: options.hideCane
-        ? "Evolución anual de la producción sin caña"
-        : "Evolución anual de la producción",
-      insight: growthInsight,
-      footnote: "2006 no se incluye en la tendencia: fue un reporte parcial piloto.",
-      items: productionByYearItems,
-    },
+    productionByYear: buildTrend(
+      trendRowsCane,
+      selectedCrops,
+      cropIndices,
+      options.hideCane,
+      growth,
+    ),
     otherCrops,
     productivity,
     municipalities: municipalitiesData,

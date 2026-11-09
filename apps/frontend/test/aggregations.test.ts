@@ -9,12 +9,13 @@ import {
   computeGrowth,
   dedupeYearly,
   getRows,
+  type DashboardFilters,
 } from "../src/lib/aggregations.ts";
 
-const filtersAll = {
-  municipio: "all",
-  cultivo: "all",
-  anio: "all",
+const filtersAll: DashboardFilters = {
+  municipios: [],
+  cultivos: [],
+  anios: [],
 };
 
 const visibleCane = { hideCane: false };
@@ -87,7 +88,7 @@ test("deduplica anual sobre semestral para el mismo municipio, cultivo y año", 
   assert.equal(deduped[0].production, 900);
 
   const data = buildDashboardData(payload, filtersAll, visibleCane);
-  assert.equal(data.selectedYear, 2020);
+  assert.equal(data.periodLabel, "Totalidad de años (2007–2025)");
   assert.equal(data.kpis.productionValue, 900);
   assert.equal(data.composition.items[0].production, 900);
 });
@@ -109,7 +110,7 @@ test("suma subcategorías anuales y descarta las semestrales", () => {
   assert.equal(data.composition.items[0].production, 300);
 });
 
-test("excluye 2006 de la tendencia y calcula crecimiento 2007–2025", () => {
+test("la totalidad excluye 2006 y el año parcial se marca", () => {
   const payload = makePayload(
     ["MUNI A"],
     ["MAÍZ"],
@@ -122,7 +123,9 @@ test("excluye 2006 de la tendencia y calcula crecimiento 2007–2025", () => {
   );
 
   const data = buildDashboardData(payload, filtersAll, visibleCane);
-  assert.equal(data.selectedYear, 2025);
+  assert.equal(data.periodLabel, "Totalidad de años (2007–2025)");
+  assert.equal(data.isPartialYear, false);
+  assert.equal(data.kpis.productionValue, 300);
   assert.equal(
     data.productionByYear.items.some((item) => item.year === 2006),
     false,
@@ -134,19 +137,45 @@ test("excluye 2006 de la tendencia y calcula crecimiento 2007–2025", () => {
   );
   assert.equal(data.kpis.growth, 100);
   assert.equal(computeGrowth(data.productionByYear.items), 100);
+  assert.equal(
+    data.composition.footnote?.includes("Totalidad de años (2007–2025)"),
+    true,
+  );
 
   const partial = buildDashboardData(
     payload,
-    { ...filtersAll, anio: "2006" },
+    { ...filtersAll, anios: ["2006"] },
     visibleCane,
   );
   assert.equal(partial.isPartialYear, true);
-  assert.equal(partial.kpis.productionYear, 2006);
+  assert.equal(partial.periodLabel, "2006");
   assert.equal(partial.kpis.productionValue, 50);
   assert.equal(
     partial.productionByYear.items.some((item) => item.year === 2006),
     false,
   );
+});
+
+test("agrega varios años seleccionados y lo indica en la etiqueta", () => {
+  const payload = makePayload(
+    ["MUNI A"],
+    ["MAÍZ"],
+    ["2020", "2021", "2022"],
+    [
+      tuple(0, 0, 0, 2020, 10, 10, 100),
+      tuple(0, 0, 1, 2021, 10, 10, 200),
+      tuple(0, 0, 2, 2022, 10, 10, 400),
+    ],
+  );
+
+  const data = buildDashboardData(
+    payload,
+    { ...filtersAll, anios: ["2020", "2021"] },
+    visibleCane,
+  );
+  assert.equal(data.periodLabel, "2 años seleccionados");
+  assert.equal(data.kpis.productionValue, 300);
+  assert.deepEqual(data.selectedYears, [2020, 2021]);
 });
 
 test("calcula top de cultivos con y sin caña", () => {
@@ -217,13 +246,45 @@ test("calcula participación del municipio y adapta el filtro", () => {
 
   const selected = buildDashboardData(
     payload,
-    { ...filtersAll, municipio: "1" },
+    { ...filtersAll, municipios: ["1"] },
     visibleCane,
   );
-  assert.equal(selected.kpis.selectedMunicipality, "MUNI B");
+  assert.deepEqual(selected.kpis.selectedMunicipalities, ["MUNI B"]);
   assert.equal(selected.kpis.topMunicipality?.label, "MUNI B");
   assert.equal(selected.kpis.municipalityShare, 40);
   assert.equal(selected.kpis.productionValue, 40);
+});
+
+test("compara varios municipios seleccionados", () => {
+  const payload = makePayload(
+    ["MUNI A", "MUNI B", "MUNI C"],
+    ["MAÍZ"],
+    ["2025"],
+    [
+      tuple(0, 0, 0, 2025, 10, 10, 60),
+      tuple(1, 0, 0, 2025, 10, 10, 40),
+      tuple(2, 0, 0, 2025, 10, 10, 20),
+    ],
+  );
+
+  const data = buildDashboardData(
+    payload,
+    { ...filtersAll, municipios: ["0", "1"] },
+    visibleCane,
+  );
+  assert.equal(
+    data.municipalities.title,
+    "Comparación de municipios seleccionados",
+  );
+  assert.deepEqual(
+    data.municipalities.items.map((item) => item.label),
+    ["MUNI A", "MUNI B"],
+  );
+  assert.equal(
+    data.municipalities.items.every((item) => item.selected),
+    true,
+  );
+  assert.deepEqual(data.kpis.selectedMunicipalities, ["MUNI A", "MUNI B"]);
 });
 
 test("adapta cultivo seleccionado a municipios y productividad", () => {
@@ -240,16 +301,65 @@ test("adapta cultivo seleccionado a municipios y productividad", () => {
 
   const data = buildDashboardData(
     payload,
-    { ...filtersAll, cultivo: "0" },
+    { ...filtersAll, cultivos: ["0"] },
     visibleCane,
   );
-  assert.equal(data.kpis.selectedCrop, "MAÍZ");
+  assert.deepEqual(data.kpis.selectedCrops, ["MAÍZ"]);
   assert.equal(data.kpis.topCrop?.label, "MAÍZ");
   assert.equal(data.kpis.productionValue, 150);
   assert.equal(data.composition.dimension, "municipio");
   assert.equal(data.composition.title, "¿Dónde se produce MAÍZ?");
   assert.equal(data.productivity.dimension, "municipio");
   assert.equal(data.municipalities.items.length, 2);
+});
+
+test("varios cultivos se reflejan en composición, KPIs, productividad y evolución", () => {
+  const payload = makePayload(
+    ["MUNI A", "MUNI B"],
+    ["MAÍZ", "CAFÉ", "PLÁTANO"],
+    ["2007", "2025"],
+    [
+      tuple(0, 0, 0, 2007, 10, 10, 100),
+      tuple(0, 1, 0, 2007, 10, 10, 300),
+      tuple(0, 2, 0, 2007, 10, 10, 900),
+      tuple(0, 0, 1, 2025, 20, 20, 200),
+      tuple(1, 1, 1, 2025, 20, 20, 600),
+      tuple(1, 2, 1, 2025, 20, 20, 1800),
+    ],
+  );
+
+  const data = buildDashboardData(
+    payload,
+    { ...filtersAll, cultivos: ["0", "1"] },
+    visibleCane,
+  );
+  assert.deepEqual(data.kpis.selectedCrops, ["MAÍZ", "CAFÉ"]);
+  assert.equal(data.kpis.topCrop?.label, "CAFÉ");
+  assert.equal(data.kpis.productionValue, 1200);
+  assert.equal(data.composition.dimension, "cultivo");
+  assert.equal(
+    data.composition.title,
+    "¿Cómo se reparten los cultivos seleccionados?",
+  );
+  assert.deepEqual(
+    data.composition.items.map((item) => item.label),
+    ["CAFÉ", "MAÍZ"],
+  );
+  assert.equal(data.productivity.dimension, "cultivo");
+  assert.deepEqual(
+    data.productivity.items.map((item) => item.label).sort(),
+    ["CAFÉ", "MAÍZ"],
+  );
+  assert.equal(data.productionByYear.multipleCrops, true);
+  assert.deepEqual(
+    data.productionByYear.series.map((serie) => serie.label),
+    ["MAÍZ", "CAFÉ"],
+  );
+  assert.equal(data.productionByYear.series.length, 2);
+  assert.deepEqual(
+    data.otherCrops.items.map((item) => item.label),
+    ["PLÁTANO"],
+  );
 });
 
 test("compara semestres sin doble conteo anual", () => {

@@ -27,7 +27,7 @@ export function ResumenSection({
 
       {data.isPartialYear && (
         <p className="partial-notice">
-          Estás viendo 2006, un año parcial piloto. Las tendencias usan
+          La selección incluye 2006, un año parcial piloto. Las tendencias usan
           2007–2025.
         </p>
       )}
@@ -39,7 +39,7 @@ export function ResumenSection({
         />
         <ProductionTrendChart
           data={data.productionByYear}
-          selectedYear={data.selectedYear}
+          selectedYears={data.selectedYears}
           onResetFilters={onResetFilters}
         />
       </div>

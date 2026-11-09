@@ -21,8 +21,10 @@ createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <UpdatePrompt />
-      {isAdminRoute ? <AdminPage /> : <App />}
-      <Footer />
+      <div className="app-shell" id="app-shell">
+        {isAdminRoute ? <AdminPage /> : <App />}
+        <Footer />
+      </div>
     </QueryClientProvider>
   </StrictMode>,
 );

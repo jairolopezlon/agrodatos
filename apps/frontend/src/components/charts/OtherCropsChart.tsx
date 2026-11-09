@@ -12,17 +12,13 @@ import { ChartCard } from "../ChartCard";
 
 interface OtherCropsChartProps {
   data: AggregatedChartData<CropAggregate>;
-  selectedYear: number;
-  empty: boolean;
-  emptyMessage: string;
+  periodLabel: string;
   onResetFilters: () => void;
 }
 
 export function OtherCropsChart({
   data,
-  selectedYear,
-  empty,
-  emptyMessage,
+  periodLabel,
   onResetFilters,
 }: OtherCropsChartProps) {
   const chartData: ChartData<"bar"> = {
@@ -61,7 +57,7 @@ export function OtherCropsChart({
       },
       y: {
         grid: { display: false },
-        ticks: { autoSkip: false, font: { size: 11 } },
+        ticks: { autoSkip: false, font: { size: 12 } },
       },
     },
   };
@@ -71,10 +67,10 @@ export function OtherCropsChart({
       title={data.title}
       insight={data.insight}
       footnote={data.footnote}
-      empty={empty || data.items.length === 0}
-      emptyMessage={emptyMessage}
+      empty={data.items.length === 0}
+      emptyMessage="No quedan otros cultivos sin caña para esta selección."
       onResetFilters={onResetFilters}
-      chartAriaLabel={`Cultivos con mayor producción sin caña en ${selectedYear}`}
+      chartAriaLabel={`Cultivos con mayor producción sin caña en ${periodLabel}`}
       table={{
         columns: ["Cultivo", "Producción", "Participación", "Área cosechada"],
         rows: data.items.map((item) => [

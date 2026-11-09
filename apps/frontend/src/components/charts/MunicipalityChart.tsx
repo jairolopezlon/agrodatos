@@ -14,13 +14,13 @@ import { ChartCard } from "../ChartCard";
 
 interface MunicipalityChartProps {
   data: AggregatedChartData<MunicipalityAggregate>;
-  selectedYear: number;
+  periodLabel: string;
   onResetFilters: () => void;
 }
 
 export function MunicipalityChart({
   data,
-  selectedYear,
+  periodLabel,
   onResetFilters,
 }: MunicipalityChartProps) {
   const chartData: ChartData<"bar"> = {
@@ -61,7 +61,7 @@ export function MunicipalityChart({
       },
       y: {
         grid: { display: false },
-        ticks: { autoSkip: false, font: { size: 11 } },
+        ticks: { autoSkip: false, font: { size: 12 } },
       },
     },
   };
@@ -73,7 +73,7 @@ export function MunicipalityChart({
       footnote={data.footnote}
       empty={data.items.length === 0}
       onResetFilters={onResetFilters}
-      chartAriaLabel={`Municipios con mayor producción en ${selectedYear}`}
+      chartAriaLabel={`Municipios con mayor producción en ${periodLabel}`}
       table={{
         columns: ["Municipio", "Producción", "Participación", "Cultivos"],
         rows: data.items.map((item) => [
