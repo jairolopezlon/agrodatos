@@ -22,7 +22,15 @@ app.use(
         return "*";
       }
 
-      return origin === allowed ? origin : null;
+      if (origin === allowed) {
+        return origin;
+      }
+
+      if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+        return origin;
+      }
+
+      return null;
     },
     allowMethods: ["GET", "HEAD", "POST", "OPTIONS"],
     allowHeaders: ["Authorization", "Content-Type", "If-None-Match"],

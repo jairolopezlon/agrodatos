@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { AdminPage } from "./components/AdminPage";
+import { Footer } from "./components/Footer";
 import { UpdatePrompt } from "./components/UpdatePrompt";
 import "./styles.css";
 
@@ -20,6 +21,7 @@ createRoot(rootElement).render(
     <QueryClientProvider client={queryClient}>
       <UpdatePrompt />
       {isAdminRoute ? <AdminPage /> : <App />}
+      <Footer />
     </QueryClientProvider>
   </StrictMode>,
 );

@@ -29,6 +29,7 @@ ChartJS.register(
 interface ProductionChartsProps {
   payload: CompressedAgroPayload;
   filters: FilterState;
+  onResetFilters?: () => void;
 }
 
 interface PeriodAggregate {
@@ -66,13 +67,30 @@ function matchesFilters(
   return true;
 }
 
-export function ProductionCharts({ payload, filters }: ProductionChartsProps) {
+export function ProductionCharts({
+  payload,
+  filters,
+  onResetFilters,
+}: ProductionChartsProps) {
   const filtered = payload.data.filter((tuple) =>
     matchesFilters(tuple, filters),
   );
 
   if (filtered.length === 0) {
-    return <p>No hay datos para los filtros seleccionados.</p>;
+    return (
+      <div className="empty-state">
+        <p>No hay datos para estos filtros.</p>
+        {onResetFilters && (
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={onResetFilters}
+          >
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+    );
   }
 
   const byPeriodo = new Map<number, PeriodAggregate>();
@@ -178,7 +196,7 @@ export function ProductionCharts({ payload, filters }: ProductionChartsProps) {
       </div>
 
       <div className="chart-card">
-        <h2>Top cultivos por producción</h2>
+        <h2>Cultivos con mayor producción</h2>
         <div className="chart-container">
           <Bar data={barData} options={barOptions} />
         </div>

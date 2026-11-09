@@ -3,6 +3,7 @@ import type {
   PendingVersion,
   VersionHistoryItem,
 } from "@agrodatos/shared-types";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyPendingVersion,
@@ -13,7 +14,7 @@ import {
   fetchVersionHistory,
   triggerEtl,
 } from "../api/admin";
-import { ApiError } from "../api/client";
+import { ApiError, fetchActiveVersion } from "../api/client";
 import { PendingChanges } from "./PendingChanges";
 
 interface LogReport {
@@ -21,6 +22,38 @@ interface LogReport {
   coverage?: {
     warnings?: string[];
   };
+}
+
+const LOG_STATUS_LABELS: Record<string, string> = {
+  RUNNING: "En proceso",
+  SUCCESS: "Completado",
+  FAILED: "Con error",
+};
+
+const DECISION_LABELS: Record<string, string> = {
+  NO_CHANGES: "Sin cambios nuevos",
+  PENDING_CREATED: "Cambios listos para revisar",
+  DISCARDED_HASH_MATCH: "Cambios ya descartados",
+  FAILED: "Búsqueda fallida",
+};
+
+const VERSION_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "En uso",
+  PENDING: "Pendiente",
+  DISCARDED: "Descartada",
+  SUPERSEDED: "Reemplazada",
+};
+
+const TRIGGER_SOURCE_LABELS: Record<string, string> = {
+  CRON: "Automática",
+  MANUAL: "Manual",
+};
+
+function translate(
+  labels: Record<string, string>,
+  value: string,
+): string {
+  return labels[value] ?? value;
 }
 
 function parseLogReport(value: string | null): LogReport | null {
@@ -36,7 +69,26 @@ function parseLogReport(value: string | null): LogReport | null {
 }
 
 function formatDate(value: string | null): string {
-  return value ? new Date(value).toLocaleString("es-CO") : "—";
+  if (!value) {
+    return "—";
+  }
+
+  return new Date(value).toLocaleDateString("es-CO", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) {
+    return "—";
+  }
+
+  return new Date(value).toLocaleString("es-CO", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 }
 
 function formatNumber(value: number | null): string {
@@ -45,8 +97,42 @@ function formatNumber(value: number | null): string {
     : new Intl.NumberFormat("es-CO").format(value);
 }
 
+function formatDuration(value: number | null): string {
+  if (value === null) {
+    return "—";
+  }
+
+  if (value < 1000) {
+    return `${value} ms`;
+  }
+
+  return `${(value / 1000).toFixed(1)} s`;
+}
+
+function friendlyError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    if (err.status === 401) {
+      return "La clave no es correcta. Verifícala e intenta de nuevo.";
+    }
+
+    if (err.status === 403) {
+      return "No tienes permisos para realizar esta acción.";
+    }
+
+    if (err.status >= 500) {
+      return "El servicio no está disponible en este momento. Intenta más tarde.";
+    }
+
+    return err.message;
+  }
+
+  return fallback;
+}
+
 export function AdminPage() {
   const [apiKey, setApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [force, setForce] = useState(false);
   const [logs, setLogs] = useState<EtlLogRecord[]>([]);
   const [pendingVersions, setPendingVersions] = useState<PendingVersion[]>([]);
   const [versionHistory, setVersionHistory] = useState<VersionHistoryItem[]>(
@@ -54,14 +140,21 @@ export function AdminPage() {
   );
   const [activeLog, setActiveLog] = useState<EtlLogRecord | null>(null);
   const [isTriggering, setIsTriggering] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [isLoadingPending, setIsLoadingPending] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState<string | null>(null);
-  const [force, setForce] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const pollTimer = useRef<number | null>(null);
+
+  const activeVersionQuery = useQuery({
+    queryKey: ["admin-active-version"],
+    queryFn: fetchActiveVersion,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const stopPolling = useCallback(() => {
     if (pollTimer.current !== null) {
@@ -81,11 +174,7 @@ export function AdminPage() {
     try {
       setLogs(await fetchEtlLogs(apiKey, 20));
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : "No se pudieron cargar los logs.",
-      );
+      setError(friendlyError(err, "No se pudo cargar la actividad reciente."));
     } finally {
       setIsLoadingLogs(false);
     }
@@ -103,9 +192,7 @@ export function AdminPage() {
       setPendingVersions(await fetchPendingVersions(apiKey, 20));
     } catch (err) {
       setError(
-        err instanceof ApiError
-          ? err.message
-          : "No se pudieron cargar las versiones pendientes.",
+        friendlyError(err, "No se pudieron cargar los cambios pendientes."),
       );
     } finally {
       setIsLoadingPending(false);
@@ -124,9 +211,7 @@ export function AdminPage() {
       setVersionHistory(await fetchVersionHistory(apiKey, 20));
     } catch (err) {
       setError(
-        err instanceof ApiError
-          ? err.message
-          : "No se pudo cargar el historial de versiones.",
+        friendlyError(err, "No se pudo cargar el historial de actualizaciones."),
       );
     } finally {
       setIsLoadingHistory(false);
@@ -135,6 +220,7 @@ export function AdminPage() {
 
   const refreshAll = useCallback(async () => {
     await Promise.all([loadLogs(), loadPending(), loadHistory()]);
+    setHasLoaded(true);
   }, [loadHistory, loadLogs, loadPending]);
 
   const startPolling = useCallback(
@@ -147,14 +233,18 @@ export function AdminPage() {
 
           if (log.status !== "RUNNING") {
             stopPolling();
+            setIsSearching(false);
+            setMessage(null);
             await refreshAll();
           }
         } catch (err) {
           setError(
-            err instanceof ApiError
-              ? err.message
-              : "No se pudo consultar el estado del ETL.",
+            friendlyError(
+              err,
+              "No se pudo consultar el estado de la búsqueda.",
+            ),
           );
+          setIsSearching(false);
           stopPolling();
         }
       }, 2500);
@@ -170,6 +260,8 @@ export function AdminPage() {
     setLogs([]);
     setPendingVersions([]);
     setVersionHistory([]);
+    setHasLoaded(false);
+    setIsSearching(false);
     setError(null);
     setMessage(null);
   }, [apiKey, stopPolling]);
@@ -181,17 +273,17 @@ export function AdminPage() {
 
     setIsTriggering(true);
     setError(null);
-    setMessage(null);
+    setMessage("Buscando cambios en los datos...");
 
     try {
       const { etl_log_id } = await triggerEtl(apiKey, force);
       setActiveLog(null);
+      setIsSearching(true);
       startPolling(etl_log_id);
     } catch (err) {
+      setMessage(null);
       setError(
-        err instanceof ApiError
-          ? err.message
-          : "No se pudo disparar el ETL.",
+        friendlyError(err, "No se pudo iniciar la búsqueda de cambios."),
       );
     } finally {
       setIsTriggering(false);
@@ -202,9 +294,12 @@ export function AdminPage() {
     versionId: string,
     action: "apply" | "omit",
   ) => {
-    const verb = action === "apply" ? "aplicar" : "omitir";
+    const question =
+      action === "apply"
+        ? "¿Publicar estos cambios? Los usuarios verán la nueva información."
+        : "¿Descartar estos cambios? Los datos publicados no cambiarán.";
 
-    if (!window.confirm(`¿Seguro que quieres ${verb} la versión ${versionId}?`)) {
+    if (!window.confirm(question)) {
       return;
     }
 
@@ -221,102 +316,217 @@ export function AdminPage() {
 
       setMessage(
         action === "apply"
-          ? `Versión ${versionId} aplicada.`
-          : `Versión ${versionId} omitida.`,
+          ? "Cambios publicados. Los usuarios ya pueden ver la nueva información."
+          : "Cambios descartados. Los datos publicados no cambiaron.",
       );
       await refreshAll();
+      await activeVersionQuery.refetch();
     } catch (err) {
       setError(
-        err instanceof ApiError
-          ? err.message
-          : "No se pudo procesar la versión pendiente.",
+        friendlyError(err, "No se pudo procesar la propuesta de actualización."),
       );
     } finally {
       setDecisionBusy(null);
     }
   };
 
-  const report = activeLog ? parseLogReport(activeLog.validation_report) : null;
-  const isRefreshing =
-    isLoadingLogs || isLoadingPending || isLoadingHistory;
+  const latestLog = activeLog ?? logs[0] ?? null;
+  const report = latestLog ? parseLogReport(latestLog.validation_report) : null;
+  const isRunning = activeLog?.status === "RUNNING";
+  const isRefreshing = isLoadingLogs || isLoadingPending || isLoadingHistory;
+  const activeVersion = activeVersionQuery.data ?? null;
 
   return (
     <main>
+      <a className="back-link" href="/">
+        ← Volver a la aplicación
+      </a>
+
       <header>
-        <h1>Administración ETL</h1>
-        <p>
-          Dispara la actualización, revisa el diff y decide si aplicar u omitir.
-        </p>
+        <h1>Panel de datos</h1>
+        <p>Revisa y publica la información agrícola del Valle del Cauca.</p>
       </header>
 
-      <section className="admin-form" aria-label="Control del ETL">
-        <label>
-          ADMIN_API_KEY
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(event) => setApiKey(event.target.value)}
-            autoComplete="off"
-            placeholder="Clave de administración"
-          />
-        </label>
-        <label className="admin-checkbox">
-          <input
-            type="checkbox"
-            checked={force}
-            onChange={(event) => setForce(event.target.checked)}
-          />
-          Forzar si fue omitido
-        </label>
-        <button
-          type="button"
-          onClick={() => void handleTrigger()}
-          disabled={!apiKey || isTriggering}
-        >
-          {isTriggering ? "Disparando..." : "Disparar ETL"}
-        </button>
-        <button
-          type="button"
-          onClick={() => void refreshAll()}
-          disabled={!apiKey || isRefreshing}
-        >
-          {isRefreshing ? "Cargando..." : "Actualizar"}
-        </button>
+      <section className="admin-card admin-published">
+        <h2>Datos publicados</h2>
+        {activeVersionQuery.isLoading ? (
+          <p>Cargando...</p>
+        ) : activeVersionQuery.isError ? (
+          <p role="alert">
+            No se pudo consultar el estado actual.{" "}
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => void activeVersionQuery.refetch()}
+            >
+              Reintentar
+            </button>
+          </p>
+        ) : activeVersion ? (
+          <div className="published-summary">
+            <strong>{formatNumber(activeVersion.total_records)} registros</strong>
+            <span>Publicados el {formatDate(activeVersion.created_at)}</span>
+            <details className="advanced-options">
+              <summary>Información técnica</summary>
+              <p className="muted-small">Código: {activeVersion.version_id}</p>
+              <p className="muted-small">
+                Versión de esquema: {activeVersion.schema_version}
+              </p>
+            </details>
+          </div>
+        ) : (
+          <p>Todavía no hay datos publicados.</p>
+        )}
       </section>
 
-      <p className="admin-note">
-        La clave se mantiene solo en memoria. Para producción, protege{" "}
-        <code>/admin</code> y <code>/api/admin/*</code> con Cloudflare Access.
-      </p>
+      <section className="admin-card admin-connect">
+        <h2>Actualizar los datos</h2>
+        <p className="admin-intro">
+          Busca datos nuevos y prepara una propuesta. Los cambios no se publican
+          hasta que los confirmes.
+        </p>
 
-      {error && <p role="alert">{error}</p>}
-      {message && <p className="admin-success">{message}</p>}
+        <div className="admin-form">
+          <label className="admin-key-field">
+            Clave de administración
+            <div className="input-group">
+              <input
+                type={showKey ? "text" : "password"}
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                autoComplete="off"
+                placeholder="Escribe la clave"
+              />
+              <button
+                type="button"
+                className="input-action"
+                onClick={() => setShowKey((visible) => !visible)}
+              >
+                {showKey ? "Ocultar" : "Mostrar"}
+              </button>
+            </div>
+          </label>
 
-      {activeLog && (
-        <section className="admin-status" aria-label="Estado del ETL">
-          <h2>Ejecución #{activeLog.id}</h2>
-          <p>
-            Estado: <strong>{activeLog.status}</strong>
+          <div className="admin-actions">
+            <button
+              type="button"
+              className="button-primary"
+              onClick={() => void handleTrigger()}
+              disabled={!apiKey || isTriggering || isSearching || isRunning}
+            >
+              {isTriggering || isSearching || isRunning
+                ? "Buscando..."
+                : "Buscar cambios"}
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => void refreshAll()}
+              disabled={!apiKey || isRefreshing}
+            >
+              {isRefreshing ? "Cargando..." : "Ver estado"}
+            </button>
+          </div>
+        </div>
+
+        {!apiKey && (
+          <p className="field-help">
+            Escribe la clave para continuar. Solicítala al responsable del
+            sistema.
           </p>
-          <p>Extraídos: {formatNumber(activeLog.records_extracted)}</p>
-          <p>Rechazados: {formatNumber(activeLog.records_rejected)}</p>
-          <p>Duración: {formatNumber(activeLog.execution_time_ms)} ms</p>
-          {report?.decision && <p>Decisión: {report.decision}</p>}
+        )}
+        <p className="field-help">
+          Por seguridad, la clave no se guarda en el navegador.
+        </p>
+
+        <details className="advanced-options">
+          <summary>Opciones avanzadas</summary>
+          <label className="admin-checkbox">
+            <input
+              type="checkbox"
+              checked={force}
+              onChange={(event) => setForce(event.target.checked)}
+            />
+            Volver a proponer cambios descartados
+          </label>
+          <p className="field-help">
+            Úsalo solo si necesitas revisar de nuevo una actualización que ya
+            habías descartado.
+          </p>
+        </details>
+
+        <details className="help-card">
+          <summary>¿Cómo funciona?</summary>
+          <ol>
+            <li>
+              Escribe la clave y pulsa <strong>Ver estado</strong>.
+            </li>
+            <li>
+              Pulsa <strong>Buscar cambios</strong> para consultar datos nuevos.
+            </li>
+            <li>
+              Revisa la propuesta y pulsa <strong>Publicar cambios</strong> o{" "}
+              <strong>Descartar</strong>.
+            </li>
+          </ol>
+        </details>
+      </section>
+
+      {error && (
+        <p className="alert alert-error" role="alert">
+          {error}
+        </p>
+      )}
+      {message && (
+        <p className="alert alert-success" role="status">
+          {message}
+        </p>
+      )}
+
+      {latestLog && (
+        <section className="admin-card admin-last-run">
+          <h2>Última búsqueda</h2>
+          <p>
+            Resultado:{" "}
+            <span className="status-badge" data-status={latestLog.status}>
+              {translate(LOG_STATUS_LABELS, latestLog.status)}
+            </span>
+          </p>
+          <p>
+            Leídos: {formatNumber(latestLog.records_extracted)} · Descartados:{" "}
+            {formatNumber(latestLog.records_rejected)} · Duración:{" "}
+            {formatDuration(latestLog.execution_time_ms)}
+          </p>
+          {report?.decision && (
+            <p>{translate(DECISION_LABELS, report.decision)}</p>
+          )}
           {report?.coverage?.warnings?.map((warning) => (
             <p key={warning} className="pending-warning">
               {warning}
             </p>
           ))}
-          {activeLog.error_message && (
-            <p role="alert">Error: {activeLog.error_message}</p>
+          {latestLog.error_message && (
+            <p className="alert alert-error" role="alert">
+              Error: {latestLog.error_message}
+            </p>
           )}
+          <p className="field-help">
+            {formatDateTime(latestLog.started_at)} ·{" "}
+            {translate(TRIGGER_SOURCE_LABELS, latestLog.trigger_source)}
+          </p>
         </section>
       )}
 
-      <section className="admin-pending" aria-label="Cambios pendientes">
-        <h2>Cambios pendientes</h2>
-        {pendingVersions.length === 0 ? (
-          <p>No hay cambios pendientes.</p>
+      <section className="admin-card admin-pending">
+        <h2>Cambios pendientes de revisión</h2>
+        {!apiKey ? (
+          <p>Ingresa la clave para consultar cambios pendientes.</p>
+        ) : !hasLoaded ? (
+          <p>
+            Pulsa <strong>Ver estado</strong> para consultar.
+          </p>
+        ) : pendingVersions.length === 0 ? (
+          <p>No hay cambios pendientes. Los datos publicados están al día.</p>
         ) : (
           pendingVersions.map((version) => (
             <PendingChanges
@@ -330,75 +540,114 @@ export function AdminPage() {
         )}
       </section>
 
-      <section className="admin-history" aria-label="Historial de versiones">
-        <details>
-          <summary>Historial de versiones ({versionHistory.length})</summary>
-          {versionHistory.length === 0 ? (
-            <p>Sin historial cargado.</p>
-          ) : (
+      <section className="admin-card admin-history">
+        <h2>Historial de actualizaciones</h2>
+        {!hasLoaded ? (
+          <p>
+            Pulsa <strong>Ver estado</strong> para consultar el historial.
+          </p>
+        ) : versionHistory.length === 0 ? (
+          <p>Todavía no hay actualizaciones registradas.</p>
+        ) : (
+          <details className="advanced-options">
+            <summary>
+              Ver últimas actualizaciones ({versionHistory.length})
+            </summary>
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Estado</th>
+                    <th>Registros</th>
+                    <th>Publicada</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {versionHistory.map((version) => (
+                    <tr key={version.version_id}>
+                      <td>
+                        <div>{formatDate(version.created_at)}</div>
+                        <div className="muted-small">
+                          {version.version_id}
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className="status-badge"
+                          data-status={version.status}
+                        >
+                          {translate(VERSION_STATUS_LABELS, version.status)}
+                        </span>
+                      </td>
+                      <td>{formatNumber(version.total_records)}</td>
+                      <td>{formatDate(version.applied_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        )}
+      </section>
+
+      <section className="admin-card admin-logs">
+        <h2>Actividad reciente</h2>
+        {!hasLoaded ? (
+          <p>
+            Pulsa <strong>Ver estado</strong> para consultar la actividad.
+          </p>
+        ) : logs.length === 0 ? (
+          <p>Todavía no hay actividad registrada.</p>
+        ) : (
+          <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Versión</th>
-                  <th>Estado</th>
-                  <th>Registros</th>
-                  <th>Creada</th>
-                  <th>Aplicada</th>
-                  <th>Omitida</th>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Resultado</th>
+                  <th>Leídos</th>
+                  <th>Descartados</th>
+                  <th>Duración</th>
+                  <th>Revisión</th>
                 </tr>
               </thead>
               <tbody>
-                {versionHistory.map((version) => (
-                  <tr key={version.version_id}>
-                    <td>{version.version_id}</td>
-                    <td>{version.status}</td>
-                    <td>{formatNumber(version.total_records)}</td>
-                    <td>{formatDate(version.created_at)}</td>
-                    <td>{formatDate(version.applied_at)}</td>
-                    <td>{formatDate(version.discarded_at)}</td>
-                  </tr>
-                ))}
+                {logs.map((log) => {
+                  const logReport = parseLogReport(log.validation_report);
+
+                  return (
+                    <tr key={log.id}>
+                      <td>{formatDateTime(log.started_at)}</td>
+                      <td>
+                        {translate(
+                          TRIGGER_SOURCE_LABELS,
+                          log.trigger_source,
+                        )}
+                      </td>
+                      <td>
+                        <span
+                          className="status-badge"
+                          data-status={log.status}
+                        >
+                          {translate(LOG_STATUS_LABELS, log.status)}
+                        </span>
+                      </td>
+                      <td>{formatNumber(log.records_extracted)}</td>
+                      <td>{formatNumber(log.records_rejected)}</td>
+                      <td>{formatDuration(log.execution_time_ms)}</td>
+                      <td>
+                        {logReport?.decision
+                          ? translate(DECISION_LABELS, logReport.decision)
+                          : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-          )}
-        </details>
-      </section>
-
-      <section className="admin-logs" aria-label="Últimos logs del ETL">
-        <h2>Últimos logs</h2>
-        {logs.length === 0 ? (
-          <p>No hay logs cargados.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Inicio</th>
-                <th>Origen</th>
-                <th>Estado</th>
-                <th>Extraídos</th>
-                <th>Rechazados</th>
-                <th>Duración</th>
-                <th>Decisión</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((log) => (
-                <tr key={log.id}>
-                  <td>{log.id}</td>
-                  <td>{formatDate(log.started_at)}</td>
-                  <td>{log.trigger_source}</td>
-                  <td>{log.status}</td>
-                  <td>{formatNumber(log.records_extracted)}</td>
-                  <td>{formatNumber(log.records_rejected)}</td>
-                  <td>{formatNumber(log.execution_time_ms)}</td>
-                  <td>
-                    {parseLogReport(log.validation_report)?.decision ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          </div>
         )}
       </section>
     </main>

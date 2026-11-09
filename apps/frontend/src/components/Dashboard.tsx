@@ -25,7 +25,11 @@ export function Dashboard({ payload }: { payload: CompressedAgroPayload }) {
         </p>
       )}
       <Filters payload={payload} value={filters} onChange={setFilters} />
-      <ProductionCharts payload={payload} filters={filters} />
+      <ProductionCharts
+        payload={payload}
+        filters={filters}
+        onResetFilters={() => setFilters(EMPTY_FILTERS)}
+      />
     </>
   );
 }

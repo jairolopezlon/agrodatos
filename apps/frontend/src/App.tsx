@@ -5,13 +5,21 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat("es-CO").format(value);
 }
 
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString("es-CO", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 export function App() {
   const { activeVersion, payload, versionQuery, payloadQuery } = useAgroData();
 
   if (versionQuery.isLoading || payloadQuery.isLoading) {
     return (
       <main>
-        <p>Cargando datos...</p>
+        <div className="loading-state">Cargando datos...</div>
       </main>
     );
   }
@@ -25,7 +33,19 @@ export function App() {
 
     return (
       <main>
-        <p role="alert">{message}</p>
+        <div className="alert alert-error" role="alert">
+          {message}
+        </div>
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={() => {
+            void versionQuery.refetch();
+            void payloadQuery.refetch();
+          }}
+        >
+          Reintentar
+        </button>
       </main>
     );
   }
@@ -33,7 +53,10 @@ export function App() {
   if (!activeVersion) {
     return (
       <main>
-        <p>No hay una versión de datos activa.</p>
+        <div className="empty-state">
+          <p>Todavía no hay datos publicados.</p>
+          <p>Vuelve más tarde.</p>
+        </div>
       </main>
     );
   }
@@ -41,7 +64,7 @@ export function App() {
   if (!payload) {
     return (
       <main>
-        <p>Preparando datos...</p>
+        <div className="loading-state">Preparando datos...</div>
       </main>
     );
   }
@@ -54,7 +77,7 @@ export function App() {
     <main>
       <header>
         <h1>AgroDatos</h1>
-        <p>Valle del Cauca · versión {activeVersion.version_id}</p>
+        <p>Datos del Valle del Cauca · Actualizados el {formatDate(activeVersion.created_at)}</p>
       </header>
 
       <section className="summary" aria-label="Resumen de datos">
