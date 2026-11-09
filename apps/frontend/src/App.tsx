@@ -1,10 +1,6 @@
 import { Dashboard } from "./components/Dashboard";
 import { UnsupportedSchemaVersionError, useAgroData } from "./hooks/useAgroData";
 
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("es-CO").format(value);
-}
-
 function formatDate(value: string): string {
   return new Date(value).toLocaleDateString("es-CO", {
     year: "numeric",
@@ -69,35 +65,15 @@ export function App() {
     );
   }
 
-  const municipios = Object.keys(payload.dicts.municipios).length;
-  const cultivos = Object.keys(payload.dicts.cultivos).length;
-  const periodos = Object.keys(payload.dicts.periodos).length;
-
   return (
     <main>
       <header>
         <h1>AgroDatos</h1>
-        <p>Datos del Valle del Cauca · Actualizados el {formatDate(activeVersion.created_at)}</p>
+        <p>
+          Datos del Valle del Cauca · Actualizados el{" "}
+          {formatDate(activeVersion.created_at)}
+        </p>
       </header>
-
-      <section className="summary" aria-label="Resumen de datos">
-        <article>
-          <strong>{formatNumber(payload.metadata.total_records)}</strong>
-          <span>Registros</span>
-        </article>
-        <article>
-          <strong>{formatNumber(municipios)}</strong>
-          <span>Municipios</span>
-        </article>
-        <article>
-          <strong>{formatNumber(cultivos)}</strong>
-          <span>Cultivos</span>
-        </article>
-        <article>
-          <strong>{formatNumber(periodos)}</strong>
-          <span>Periodos</span>
-        </article>
-      </section>
 
       <Dashboard key={activeVersion.version_id} payload={payload} />
     </main>

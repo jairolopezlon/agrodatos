@@ -85,8 +85,9 @@ export function DataSourceDialog() {
           </p>
 
           <p>
-            2006 se incluye como año parcial: 374 registros, 42 municipios, 24
-            cultivos y solo el periodo <code>2006B</code>.
+            2006 fue un reporte parcial piloto: 374 registros, 42 municipios, 24
+            cultivos y solo el periodo <code>2006B</code>. El historial
+            comparable va de 2007 a 2025.
           </p>
 
           <p>

@@ -30,5 +30,8 @@ jobs:
       - name: Worker tests
         run: pnpm --filter @agrodatos/worker-etl test
 
+      - name: Frontend tests
+        run: pnpm --filter @agrodatos/frontend test
+
       - name: Build
         run: pnpm build

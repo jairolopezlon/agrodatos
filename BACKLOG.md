@@ -480,12 +480,16 @@ export interface CompressedAgroPayload {
 - **Descripción:** construir las vistas y gráficas sobre el store local.
 - **Criterios de aceptación:**
   - Agregar `chart.js` y `react-chartjs-2` a `apps/frontend/package.json`.
-  - Filtros por municipio, cultivo, año y periodo.
+  - Filtros por municipio, cultivo y año; botón para limpiar filtros.
   - Agregar/agrupar datos antes de graficar para no renderizar 26 000 puntos.
   - Gráficas responsivas con Chart.js.
   - Estados de carga, vacío y error.
   - Funcionamiento completo sin conexión.
-- **Notas:** no se instala Shadcn UI por defecto porque el stack inicial definió “Tailwind CSS puro”. Si se necesita un combobox con búsqueda, se evalúa una alternativa ligera más adelante. Implementado con `chart.js` 4.6.1 y `react-chartjs-2` 5.3.1: filtros por municipio/cultivo/año/periodo, agregación por periodo y top 10 de cultivos, gráficas responsivas y estados de carga/vacío/error. El bundle supera 500 kB por Chart.js; se puede dividir en el futuro. `typecheck` y `build` pasan.
+  - Navegación por anclas: Resumen, Cultivos, Municipios y Evolución.
+  - Interruptor **Ocultar caña** y vista “Otros cultivos” sin caña.
+  - “Ver datos en tabla” en cada gráfico.
+  - Deduplicación anual/semestral, subcategorías aditivas y 2006 marcado como parcial.
+- **Notas:** no se instala Shadcn UI por defecto porque el stack inicial definió “Tailwind CSS puro”. Si se necesita un combobox con búsqueda, se evalúa una alternativa ligera más adelante. Implementado con `chart.js` 4.6.1 y `react-chartjs-2` 5.3.1. El tablero se refactorizó a una sola página con secciones y anclas; incluye KPIs de insight, composición, tendencia 2007–2025, otros cultivos sin caña, productividad t/ha, municipios, éxito de cosecha y semestres. Las agregaciones viven en `lib/aggregations.ts` con pruebas en `apps/frontend/test`. El bundle supera 500 kB por Chart.js; se puede dividir en el futuro. `typecheck`, tests y `build` pasan.
 
 ### T16 — Vista Admin y UI del Trigger ETL
 

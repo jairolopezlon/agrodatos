@@ -202,6 +202,33 @@ Estrategias PWA:
 - Precache del app shell.
 - Sin caché para `/api/admin/*`.
 
+## Tablero público
+
+```mermaid
+flowchart LR
+  F[Filtros: municipio, cultivo, año] --> A[Agregaciones]
+  C[Toggle: ocultar caña] --> A
+  A --> K[KPIs]
+  A --> CO[Composición]
+  A --> T[Tendencia 2007–2025]
+  A --> O[Otros cultivos sin caña]
+  A --> P[Productividad t/ha]
+  A --> M[Municipios]
+  A --> H[Cosecha]
+  A --> S[Semestres]
+```
+
+Reglas:
+
+- Una sola página con secciones **Resumen**, **Cultivos**, **Municipios** y **Evolución**.
+- Filtros globales: **Municipio**, **Cultivo** y **Año**; botón **Limpiar filtros**.
+- 2006 se excluye de la tendencia y de los cálculos de crecimiento; si se filtra, se marca **Datos parciales**.
+- Deduplicación anual/semestral por `(municipio, cultivo, año)`: se usa el registro anual si existe.
+- Las subcategorías del mismo cultivo y periodo se suman.
+- Rendimiento ponderado = `sum(produccion) / sum(areaCosechada)`.
+- Cada `ChartCard` incluye **Ver datos en tabla** y un estado vacío con **Limpiar filtros**.
+- El interruptor **Ocultar caña** recalcula el panorama sin caña; el gráfico “Otros cultivos” siempre excluye la caña.
+
 ## Cobertura de fuentes
 
 ```mermaid

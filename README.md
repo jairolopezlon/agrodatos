@@ -188,9 +188,14 @@ Las rutas admin requieren `Authorization: Bearer <ADMIN_API_KEY>`.
 - React Query para lectura asíncrona de IndexedDB.
 - Descarga el payload solo si cambió el hash o `schema_version`.
 - Conserva la versión activa y la anterior; poda las demás.
-- Filtros por municipio, cultivo, año y periodo.
-- Gráficas responsivas agregadas por periodo y top 10 de cultivos.
-- Aviso de año parcial 2006.
+- Navegación por anclas: Resumen, Cultivos, Municipios y Evolución.
+- Filtros por municipio, cultivo y año, con botón para limpiar filtros.
+- Tarjetas de insight: producción, cultivo principal, municipio principal y productividad.
+- Gráficos: composición, tendencia 2007–2025, otros cultivos sin caña, productividad t/ha, municipios, éxito de cosecha y semestres.
+- Interruptor **Ocultar caña** para ver el panorama sin la caña.
+- “Ver datos en tabla” en cada gráfico para lectura accesible.
+- Regla anual vs semestral: si hay ambos, se usa el anual; las subcategorías se suman.
+- 2006 se excluye de la tendencia; si se filtra, se marca **Datos parciales**.
 - Funcionamiento offline con fallback a caché.
 - Panel `/admin` con trigger, diff, aplicar/omitir e historial.
 
@@ -223,6 +228,7 @@ pnpm install
 pnpm dev                                   # Worker + frontend
 pnpm typecheck                             # TypeScript en todo el monorepo
 pnpm --filter @agrodatos/worker-etl test   # 41 pruebas unitarias
+pnpm --filter @agrodatos/frontend test     # 8 pruebas de agregaciones
 pnpm --filter @agrodatos/worker-etl smoke  # Smoke real contra Socrata
 pnpm --filter @agrodatos/worker-etl coverage
 pnpm --filter @agrodatos/worker-etl coverage:strict
@@ -234,7 +240,8 @@ pnpm build                                 # Build de Worker y frontend
 
 ## 🧪 Pruebas y cobertura
 
-- Unitarias: normalización, adaptadores, paginación/reintentos, transformación, validación, cobertura, diff, hash/gzip y versión.
+- Unitarias backend: normalización, adaptadores, paginación/reintentos, transformación, validación, cobertura, diff, hash/gzip y versión.
+- Unitarias frontend: deduplicación anual/semestral, exclusión de 2006, top cultivos con/sin caña, rendimiento ponderado y éxito de cosecha.
 - Integración local con Wrangler y D1 para repositorio, API, trigger y aprobación.
 - Smoke real: 26.363 registros, 25.909 aceptados, gzip 190.836 bytes.
 - Cobertura híbrida:
