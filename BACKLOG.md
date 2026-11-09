@@ -15,7 +15,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Contratos compartidos (T01), esquema D1 (T02), scaffolding (T03), provisión D1 (T04) y extracción Socrata (T05) implementados.
 - D1 `agrodatos` activa en ENAM; esquema aplicado en local y remoto.
 - Ola 4 implementada: versionado/hash/gzip y API pública.
-- Ola 5 parcial: orquestador ETL implementado; falta el cliente offline (T13).
+- Ola 5 completa: orquestador ETL y cliente offline implementados.
 
 ---
 
@@ -82,7 +82,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** T13 (cliente offline) — Ola 5.
+**Próxima ola a ejecutar:** Ola 6 (T12 + T14 + T15).
 
 ---
 
@@ -103,7 +103,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T10 | Orquestador ETL + Load | B. Procesamiento | T05, T06, T07, T08, T09 | 5 | Hecho |
 | T11 | API Hono y endpoints públicos | C. API y automatización | T08 | 4 | Hecho |
 | T12 | Cron + trigger manual seguro | C. API y automatización | T10, T11 | 6 | Pendiente |
-| T13 | Cliente frontend + Dexie | D. Frontend offline | T11 | 5 | Pendiente |
+| T13 | Cliente frontend + Dexie | D. Frontend offline | T11 | 5 | Hecho |
 | T14 | PWA y sincronización offline | D. Frontend offline | T13 | 6 | Pendiente |
 | T15 | Visualización de datos (Chart.js) | D. Frontend offline | T13 | 6 | Pendiente |
 | T16 | Vista Admin y UI del Trigger ETL | D. Frontend offline | T12, T13 | 7 | Pendiente |
@@ -433,7 +433,7 @@ export interface CompressedAgroPayload {
 
 ### T13 — Cliente frontend + Dexie
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T11.
 - **Ola:** 5.
 - **Descripción:** implementar la capa de datos offline en React.
@@ -445,7 +445,7 @@ export interface CompressedAgroPayload {
   - Lectura asíncrona desde Dexie con React Query o `useLiveQuery`; nunca síncrona.
   - Limpieza de versiones antiguas (conservar la activa y opcionalmente la anterior).
   - Manejo de `schema_version` no soportado con aviso de actualización.
-- **Notas:** el endpoint es `/api/version`, no un archivo estático `version.json`.
+- **Notas:** el endpoint es `/api/version`, no un archivo estático `version.json`. Implementado `src/db/dexie.ts` (tablas `versions` y `payloads`), `src/api/client.ts`, `src/hooks/useAgroData.ts` (TanStack Query + Dexie, fallback a caché, poda de versiones y error `UnsupportedSchemaVersionError`) y una app mínima en `src/App.tsx`. `pnpm --filter @agrodatos/frontend typecheck` y `build` pasan.
 
 ### T14 — PWA y sincronización offline
 
