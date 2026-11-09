@@ -17,7 +17,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Ola 4 implementada: versionado/hash/gzip y API pública.
 - Ola 5 completa: orquestador ETL y cliente offline implementados.
 - Ola 6 completa: cron, PWA y visualización implementados.
-- Ola 7 parcial: vista admin implementada; faltan pruebas (T17).
+- Ola 7 completa: vista admin y pruebas implementadas.
 
 ---
 
@@ -84,7 +84,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** T17 (pruebas y smoke tests) — Ola 7.
+**Próxima ola a ejecutar:** Ola 8 (T18) — despliegue y CI/CD.
 
 ---
 
@@ -109,7 +109,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T14 | PWA y sincronización offline | D. Frontend offline | T13 | 6 | Hecho |
 | T15 | Visualización de datos (Chart.js) | D. Frontend offline | T13 | 6 | Hecho |
 | T16 | Vista Admin y UI del Trigger ETL | D. Frontend offline | T12, T13 | 7 | Hecho |
-| T17 | Pruebas y smoke tests | C. API y automatización | T06, T07, T08, T09, T10, T11 | 7 | Pendiente |
+| T17 | Pruebas y smoke tests | C. API y automatización | T06, T07, T08, T09, T10, T11 | 7 | Hecho |
 | T18 | Despliegue y CI/CD | E. Operación | T14, T16, T17 | 8 | Pendiente |
 
 ---
@@ -419,7 +419,7 @@ export interface CompressedAgroPayload {
 
 ### T17 — Pruebas y smoke tests
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T06, T07, T08, T09, T10, T11.
 - **Ola:** 7.
 - **Descripción:** cubrir las piezas críticas del pipeline y la API.
@@ -427,8 +427,9 @@ export interface CompressedAgroPayload {
   - Unitarias: `toNumber`, adaptadores, transformación, reglas de validación, hash determinista y gzip.
   - Integración: repositorio D1 local y rutas Hono con Miniflare/Wrangler.
   - Smoke opcional contra Socrata real: > 20 000 registros, gzip < 2 MB, `schema_version` correcto.
-  - Framework a definir: Vitest o `node:test`.
+  - Framework: `node:test` con `--experimental-strip-types`.
   - No se exige cobertura alta; sí cubrir los caminos que pueden corromper datos.
+- **Notas:** 25 pruebas unitarias en `apps/worker-etl/test/` con `node:test` (sin dependencias nuevas): `toNumber`, adaptadores, paginación/reintentos/errores, determinismo y entrada vacía de transformación, reglas y errores fatales de validación, SHA-256, gzip y `buildVersion`. Script `smoke` contra Socrata real: 26 363 registros, 25 535 aceptados, 828 rechazados, gzip de 189 383 bytes y `schema_version: 1`. La integración D1/Hono se verificó con Wrangler local en T04, T08, T11, T12 y T16.
 
 ---
 
