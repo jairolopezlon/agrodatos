@@ -151,7 +151,7 @@ export async function getVersionMetadata(
 export async function getVersionPayload(
   env: DbEnv,
   versionId: string,
-): Promise<Uint8Array | null> {
+): Promise<Uint8Array<ArrayBuffer> | null> {
   const row = await env.DB.prepare(
     "SELECT payload_gzip FROM data_versions WHERE version_id = ? LIMIT 1",
   )
@@ -163,7 +163,7 @@ export async function getVersionPayload(
   }
 
   if (row.payload_gzip instanceof Uint8Array) {
-    return row.payload_gzip;
+    return new Uint8Array(row.payload_gzip);
   }
 
   if (row.payload_gzip instanceof ArrayBuffer) {

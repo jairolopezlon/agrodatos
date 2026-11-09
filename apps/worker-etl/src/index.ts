@@ -1,14 +1,33 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import type { Env as EtlEnv } from "./etl/extract";
+import { apiRoutes } from "./routes/api";
 
 export interface Env extends EtlEnv {
   DB: D1Database;
+  PAGES_ORIGIN?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.get("/api/health", (c) =>
-  c.json({ status: "ok", service: "AgroDatos ETL" }),
+app.use(
+  "*",
+  cors({
+    origin: (origin, c) => {
+      const allowed = c.env.PAGES_ORIGIN;
+
+      if (!allowed || allowed === "*") {
+        return "*";
+      }
+
+      return origin === allowed ? origin : null;
+    },
+    allowMethods: ["GET", "HEAD", "OPTIONS"],
+    allowHeaders: ["Content-Type", "If-None-Match"],
+    exposeHeaders: ["ETag", "Content-Encoding", "Cache-Control"],
+  }),
 );
+
+app.route("/api", apiRoutes);
 
 export default app;

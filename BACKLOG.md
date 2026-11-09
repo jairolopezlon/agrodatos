@@ -14,8 +14,8 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Commits iniciales: `docs: add project README`, `docs: add project backlog`.
 - Contratos compartidos (T01), esquema D1 (T02), scaffolding (T03), provisión D1 (T04) y extracción Socrata (T05) implementados.
 - D1 `agrodatos` activa en ENAM; esquema aplicado en local y remoto.
-- Ola 3 implementada: transformación, Data Quality y repositorio D1.
-- Aún no hay versionado/hash/gzip, API pública ni orquestador.
+- Ola 4 implementada: versionado/hash/gzip y API pública.
+- Aún no hay orquestador ETL, frontend offline, cron ni despliegue.
 
 ---
 
@@ -82,7 +82,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** Ola 4 (T09 + T11).
+**Próxima ola a ejecutar:** Ola 5 (T10 + T13).
 
 ---
 
@@ -99,9 +99,9 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T06 | Transformación y compactación de payload | B. Procesamiento | T01, T05 | 3 | Hecho |
 | T07 | Data Quality y Circuit Breaker | B. Procesamiento | T01, T05 | 3 | Hecho |
 | T08 | Repositorio D1 | B. Procesamiento | T01, T02, T04 | 3 | Hecho |
-| T09 | Versionado, hash y gzip | B. Procesamiento | T06, T07 | 4 | Pendiente |
+| T09 | Versionado, hash y gzip | B. Procesamiento | T06, T07 | 4 | Hecho |
 | T10 | Orquestador ETL + Load | B. Procesamiento | T05, T06, T07, T08, T09 | 5 | Pendiente |
-| T11 | API Hono y endpoints públicos | C. API y automatización | T08 | 4 | Pendiente |
+| T11 | API Hono y endpoints públicos | C. API y automatización | T08 | 4 | Hecho |
 | T12 | Cron + trigger manual seguro | C. API y automatización | T10, T11 | 6 | Pendiente |
 | T13 | Cliente frontend + Dexie | D. Frontend offline | T11 | 5 | Pendiente |
 | T14 | PWA y sincronización offline | D. Frontend offline | T13 | 6 | Pendiente |
@@ -328,7 +328,7 @@ export interface CompressedAgroPayload {
 
 ### T09 — Versionado, hash y gzip
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T06, T07.
 - **Ola:** 4.
 - **Archivo:** `apps/worker-etl/src/etl/version.ts`
@@ -345,6 +345,7 @@ export interface CompressedAgroPayload {
   - `version_id` con formato `YYYY.MM.DD-<hash corto>`.
   - Guardia: si el gzip supera 1,8 MB, lanzar error descriptivo (límite D1 de 2 MB).
   - Pruebas de determinismo: mismo contenido produce mismo hash.
+- **Notas:** `buildVersion` devuelve `BuiltVersion` (sin `etl_log_id`/`is_active`); el orquestador T10 completa el `DataVersionRecord`. `version_id` usa `YYYY.MM.DD-<12 hex>`. El hash se calcula sobre el JSON canónico y el gzip sobre el payload completo. Verificado: SHA-256 de `abc` correcto, hash estable, gzip estable, round-trip correcto y guardia de 1,8 MB.
 
 ### T10 — Orquestador ETL + Load
 
@@ -377,10 +378,10 @@ export interface CompressedAgroPayload {
 
 ### T11 — API Hono y endpoints públicos
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T08.
 - **Ola:** 4.
-- **Archivos:** `apps/worker-etl/src/routes/*.ts`, `apps/worker-etl/src/index.ts`
+- **Archivos:** `apps/worker-etl/src/routes/{health,version,data,api}.ts`, `apps/worker-etl/src/index.ts`
 - **Descripción:** exponer metadata y payload al frontend.
 - **Endpoints:**
   - `GET /api/health`
@@ -393,6 +394,7 @@ export interface CompressedAgroPayload {
   - `Cache-Control: no-cache` para metadata y `immutable` para URLs versionadas.
   - CORS habilitado para el dominio de Pages.
   - Respuesta 404 clara si no hay versión activa.
+- **Notas:** Integración local verificada: health 200, version 200 con `Cache-Control: no-cache` y ETag, version 304 con `If-None-Match`, data 200 con `Content-Encoding: gzip` y `immutable`, HEAD 200 sin body, 404 para versión inexistente y CORS con `PAGES_ORIGIN` (default `*`). El endpoint de datos usa `encodeBody: "manual"` para evitar doble compresión; el runtime negocia `identity` descomprimiendo el payload.
 
 ### T12 — Cron + trigger manual seguro
 
