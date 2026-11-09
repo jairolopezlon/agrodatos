@@ -33,8 +33,8 @@ agrodatos/
 
 ### Prerrequisitos
 
-- Node.js (v18+)
-- pnpm (v9+)
+- Node.js 24 (recomendado)
+- pnpm 10
 - Cuenta de Cloudflare (para despliegue y base de datos D1 local con Wrangler)
 
 ### Instalación
@@ -57,6 +57,27 @@ pnpm install
 ```bash
 pnpm dev
 ```
+
+### Pruebas
+
+```bash
+pnpm typecheck
+pnpm --filter @agrodatos/worker-etl test
+pnpm --filter @agrodatos/worker-etl smoke
+```
+
+`smoke` consulta Socrata real y verifica volumen, gzip y `schema_version`; es opcional.
+
+## 🌐 Despliegue
+
+- **Frontend:** https://agrodatos.pages.dev
+- **Panel admin:** https://agrodatos.pages.dev/admin
+- **Worker ETL / API:** https://agrodatos-worker-etl.jairolop88.workers.dev
+- **Health check:** https://agrodatos-worker-etl.jairolop88.workers.dev/api/health
+
+El Worker corre con un Cron Trigger semanal y expone `/api/version`, `/api/data/:versionId` y rutas administrativas protegidas. El frontend se despliega en Cloudflare Pages y funciona offline con Dexie.
+
+Consulta [docs/DEPLOY.md](docs/DEPLOY.md) para variables, secretos, migraciones de D1 y comandos de despliegue.
 
 ## 📊 Fuentes de Datos (Open Data)
 

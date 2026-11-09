@@ -1,0 +1,65 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://agrodatos-worker-etl.jairolop88.workers.dev' }}
+      SOCRATA_APP_TOKEN: ${{ secrets.SOCRATA_APP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Worker tests
+        run: pnpm --filter @agrodatos/worker-etl test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Deploy Worker
+        run: pnpm --filter @agrodatos/worker-etl run deploy
+
+      - name: Require ADMIN_API_KEY
+        run: test -n "$ADMIN_API_KEY"
+        env:
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+
+      - name: Set ADMIN_API_KEY
+        run: printf '%s' "$ADMIN_API_KEY" | pnpm --filter @agrodatos/worker-etl exec wrangler secret put ADMIN_API_KEY
+        env:
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+
+      - name: Set SOCRATA_APP_TOKEN
+        if: env.SOCRATA_APP_TOKEN != ''
+        run: printf '%s' "$SOCRATA_APP_TOKEN" | pnpm --filter @agrodatos/worker-etl exec wrangler secret put SOCRATA_APP_TOKEN
+
+      - name: Deploy Pages
+        working-directory: apps/frontend
+        run: ../worker-etl/node_modules/.bin/wrangler pages deploy dist --project-name agrodatos --branch main --commit-dirty=true

@@ -18,6 +18,8 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Ola 5 completa: orquestador ETL y cliente offline implementados.
 - Ola 6 completa: cron, PWA y visualización implementados.
 - Ola 7 completa: vista admin y pruebas implementadas.
+- Ola 8 completa: producción desplegada y CI/CD configurado.
+- Frontend: https://agrodatos.pages.dev · Worker: https://agrodatos-worker-etl.jairolop88.workers.dev
 
 ---
 
@@ -84,7 +86,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** Ola 8 (T18) — despliegue y CI/CD.
+**Próxima ola a ejecutar:** Ninguna — backlog completo (T00–T18).
 
 ---
 
@@ -110,7 +112,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T15 | Visualización de datos (Chart.js) | D. Frontend offline | T13 | 6 | Hecho |
 | T16 | Vista Admin y UI del Trigger ETL | D. Frontend offline | T12, T13 | 7 | Hecho |
 | T17 | Pruebas y smoke tests | C. API y automatización | T06, T07, T08, T09, T10, T11 | 7 | Hecho |
-| T18 | Despliegue y CI/CD | E. Operación | T14, T16, T17 | 8 | Pendiente |
+| T18 | Despliegue y CI/CD | E. Operación | T14, T16, T17 | 8 | Hecho |
 
 ---
 
@@ -503,7 +505,7 @@ export interface CompressedAgroPayload {
 
 ### T18 — Despliegue y CI/CD
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T14, T16, T17.
 - **Ola:** 8.
 - **Descripción:** publicar frontend y Worker, y automatizar verificaciones.
@@ -514,6 +516,7 @@ export interface CompressedAgroPayload {
   - GitHub Actions: install, typecheck, tests, build y deploy en `main`.
   - Documentación de variables, secrets y comandos de migración.
   - Dominio personalizado opcional.
+- **Notas:** Frontend en `https://agrodatos.pages.dev` y Worker en `https://agrodatos-worker-etl.jairolop88.workers.dev`. D1 remoto con esquema aplicado; cron activo `0 3 * * 1` (Cloudflare usa 1 = domingo; `0` es inválido). `ADMIN_API_KEY` configurada como secreto (su valor no se versiona); `SOCRATA_APP_TOKEN` omitido por decisión del usuario. ETL de producción verificado: log `SUCCESS`, 26 363 extraídos, 828 rechazados, versión `2026.11.09-f61c89984492`, 25 535 registros y gzip de 189 383 bytes. Se agregaron `ci.yml`, `deploy.yml`, `docs/DEPLOY.md` y la sección de despliegue del README. La creación inicial del proyecto Pages requirió `--force` por la delegación de Wrangler 4.158; los despliegues posteriores van directo a Pages.
 
 ---
 
@@ -537,6 +540,8 @@ export interface CompressedAgroPayload {
 | UI | Tailwind puro + componentes nativos; Shadcn UI solo si se justifica |
 | Dexie | Lectura asíncrona con React Query o `useLiveQuery` |
 | Admin | `ADMIN_API_KEY` en memoria; Cloudflare Access recomendado en producción |
+| Producción | Frontend `https://agrodatos.pages.dev`; Worker `https://agrodatos-worker-etl.jairolop88.workers.dev` |
+| Cron | `0 3 * * 1` (Cloudflare usa 1 = domingo; `0` es inválido) |
 
 ---
 
