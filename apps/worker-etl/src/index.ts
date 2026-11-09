@@ -1,6 +1,7 @@
 import { Hono } from "hono";
+import type { Env as EtlEnv } from "./etl/extract";
 
-export interface Env {
+export interface Env extends EtlEnv {
   DB: D1Database;
 }
 

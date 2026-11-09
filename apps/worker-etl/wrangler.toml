@@ -2,10 +2,10 @@ name = "agrodatos-worker-etl"
 main = "src/index.ts"
 compatibility_date = "2024-03-20"
 
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "agrodatos"
-# database_id = "pending-creation"
+[[d1_databases]]
+binding = "DB"
+database_name = "agrodatos"
+database_id = "e348edb1-e8b0-486d-9f7f-c2f1dec7529d"
 
 # [triggers]
 # crons = ["0 3 * * 0"]

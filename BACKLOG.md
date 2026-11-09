@@ -12,9 +12,9 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Paquetes base creados: `@agrodatos/frontend`, `@agrodatos/worker-etl`, `@agrodatos/shared-types`.
 - Repositorio público: https://github.com/jairolopezlon/agrodatos
 - Commits iniciales: `docs: add project README`, `docs: add project backlog`.
-- Contratos compartidos (T01) implementados y verificados con typecheck.
-- Esquema D1 (T02) y scaffolding del Worker (T03) implementados.
-- Aún no hay módulo ETL, rutas de API ni binding D1 activo.
+- Contratos compartidos (T01), esquema D1 (T02), scaffolding (T03), provisión D1 (T04) y extracción Socrata (T05) implementados.
+- D1 `agrodatos` activa en ENAM; esquema aplicado en local y remoto.
+- Aún no hay transformación, Data Quality, repositorio D1 ni API pública.
 
 ---
 
@@ -81,7 +81,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** Ola 2 (T04 + T05).
+**Próxima ola a ejecutar:** Ola 3 (T06 + T07 + T08).
 
 ---
 
@@ -93,8 +93,8 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T01 | Contratos compartidos | A. Fundaciones | — | 1 | Hecho |
 | T02 | Esquema D1 | A. Fundaciones | — | 1 | Hecho |
 | T03 | Scaffolding del Worker | A. Fundaciones | — | 1 | Hecho |
-| T04 | Provisión de D1 | A. Fundaciones | T02, T03 | 2 | Pendiente |
-| T05 | Módulo de extracción Socrata | A. Fundaciones | T01, T03 | 2 | Pendiente |
+| T04 | Provisión de D1 | A. Fundaciones | T02, T03 | 2 | Hecho |
+| T05 | Módulo de extracción Socrata | A. Fundaciones | T01, T03 | 2 | Hecho |
 | T06 | Transformación y compactación de payload | B. Procesamiento | T01, T05 | 3 | Pendiente |
 | T07 | Data Quality y Circuit Breaker | B. Procesamiento | T01, T05 | 3 | Pendiente |
 | T08 | Repositorio D1 | B. Procesamiento | T01, T02, T04 | 3 | Pendiente |
@@ -216,7 +216,7 @@ export interface CompressedAgroPayload {
 
 ### T04 — Provisión de D1
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T02, T03.
 - **Ola:** 2.
 - **Descripción:** crear la base D1 `agrodatos`, configurar el binding y aplicar el esquema.
@@ -226,10 +226,11 @@ export interface CompressedAgroPayload {
   - `sqlite_master` muestra tablas e índices.
   - El Worker puede acceder a `env.DB`.
 - **Riesgos:** requiere autenticación y permisos de Cloudflare. Si no están disponibles, se aplica solo en local y la tarea queda `Bloqueada` para remoto.
+- **Notas:** Base `agrodatos` creada con ID `e348edb1-e8b0-486d-9f7f-c2f1dec7529d` en ENAM. Esquema aplicado con `wrangler d1 execute --local` y vía API remota; `sqlite_master` confirmó tablas e índices. `wrangler deploy --dry-run` muestra `env.DB (agrodatos)` como D1 Database.
 
 ### T05 — Módulo de extracción Socrata
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T01, T03.
 - **Ola:** 2.
 - **Archivo:** `apps/worker-etl/src/etl/extract.ts`
@@ -248,6 +249,7 @@ export interface CompressedAgroPayload {
   - Fallbacks para los nombres reales de la fuente vigente (`rea_sembrada`, `rea_cosechada`, `producci_n`, `rendimiento`).
   - Smoke test con ~26 363 registros.
   - Sin dependencias externas adicionales.
+- **Notas:** Smoke test real: 26 363 registros (15 774 históricos + 10 589 vigentes), 42 municipios, 172 cultivos y 57 periodos. Reintentos con backoff exponencial y `Retry-After`; timeout con `AbortSignal.timeout`. `index.ts` extiende `Env` para exigir `DB` y mantener `SOCRATA_APP_TOKEN` opcional.
 
 ---
 
