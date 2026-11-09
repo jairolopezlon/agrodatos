@@ -14,7 +14,8 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Commits iniciales: `docs: add project README`, `docs: add project backlog`.
 - Contratos compartidos (T01), esquema D1 (T02), scaffolding (T03), provisión D1 (T04) y extracción Socrata (T05) implementados.
 - D1 `agrodatos` activa en ENAM; esquema aplicado en local y remoto.
-- Aún no hay transformación, Data Quality, repositorio D1 ni API pública.
+- Ola 3 implementada: transformación, Data Quality y repositorio D1.
+- Aún no hay versionado/hash/gzip, API pública ni orquestador.
 
 ---
 
@@ -81,7 +82,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** Ola 3 (T06 + T07 + T08).
+**Próxima ola a ejecutar:** Ola 4 (T09 + T11).
 
 ---
 
@@ -95,9 +96,9 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T03 | Scaffolding del Worker | A. Fundaciones | — | 1 | Hecho |
 | T04 | Provisión de D1 | A. Fundaciones | T02, T03 | 2 | Hecho |
 | T05 | Módulo de extracción Socrata | A. Fundaciones | T01, T03 | 2 | Hecho |
-| T06 | Transformación y compactación de payload | B. Procesamiento | T01, T05 | 3 | Pendiente |
-| T07 | Data Quality y Circuit Breaker | B. Procesamiento | T01, T05 | 3 | Pendiente |
-| T08 | Repositorio D1 | B. Procesamiento | T01, T02, T04 | 3 | Pendiente |
+| T06 | Transformación y compactación de payload | B. Procesamiento | T01, T05 | 3 | Hecho |
+| T07 | Data Quality y Circuit Breaker | B. Procesamiento | T01, T05 | 3 | Hecho |
+| T08 | Repositorio D1 | B. Procesamiento | T01, T02, T04 | 3 | Hecho |
 | T09 | Versionado, hash y gzip | B. Procesamiento | T06, T07 | 4 | Pendiente |
 | T10 | Orquestador ETL + Load | B. Procesamiento | T05, T06, T07, T08, T09 | 5 | Pendiente |
 | T11 | API Hono y endpoints públicos | C. API y automatización | T08 | 4 | Pendiente |
@@ -257,15 +258,15 @@ export interface CompressedAgroPayload {
 
 ### T06 — Transformación y compactación de payload
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T01, T05.
 - **Ola:** 3.
 - **Archivo:** `apps/worker-etl/src/etl/transform.ts`
 - **Descripción:** convertir `AgroDataNormalized[]` en `CompressedAgroPayload` con diccionarios y tuplas posicionales.
 - **Reglas:**
-  - `dicts.municipios`: array de `{ id, nombre }` único, ordenado por `id`.
-  - `dicts.cultivos`: array de nombres único, ordenado alfabéticamente.
-  - `dicts.periodos`: array único, ordenado cronológicamente.
+  - `dicts.municipios`: `Record<number, string>` (índice → nombre), único, ordenado por `id`.
+  - `dicts.cultivos`: `Record<number, string>` (índice → nombre), único, ordenado alfabéticamente.
+  - `dicts.periodos`: `Record<number, string>` (índice → periodo), único, ordenado cronológicamente.
   - `data`: tuplas `[municipioIdx, cultivoIdx, periodoIdx, anio, areaSembrada, areaCosechada, produccion, rendimiento]`.
   - Diccionarios deterministas para que el hash sea estable.
 - **Criterios de aceptación:**
@@ -273,10 +274,11 @@ export interface CompressedAgroPayload {
   - No se pierden registros semestrales (`2019A`, `2019B`).
   - Entrada vacía produce un payload válido con diccionarios y data vacíos.
   - Pruebas de determinismo: mismo input produce mismo output.
+- **Notas:** Implementado `buildCompressedPayload(rows, options)`. Smoke test con 25 535 registros aceptados: 42 municipios, 172 cultivos y 56 periodos; dos ejecuciones con el mismo input produjeron payloads idénticos. Los diccionarios se ajustaron al tipo `Record<number, string>` de `@agrodatos/shared-types`.
 
 ### T07 — Data Quality y Circuit Breaker
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T01, T05.
 - **Ola:** 3.
 - **Archivo:** `apps/worker-etl/src/etl/validate.ts`
@@ -298,10 +300,11 @@ export interface CompressedAgroPayload {
   - Un dato atípico aislado no bloquea toda la actualización.
   - El reporte se guarda en `etl_logs.validation_report`.
   - Umbrales definidos como constantes configurables.
+- **Notas:** Implementado `validateAgroData(rows, thresholds)`. Smoke test real: 26 363 registros → 25 535 aceptados y 828 rechazados (3,14%), sin errores fatales. Motivos: 454 `area_cosechada_mayor_que_area_sembrada` y 374 `anio_fuera_de_rango`.
 
 ### T08 — Repositorio D1
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T01, T02, T04.
 - **Ola:** 3.
 - **Archivo:** `apps/worker-etl/src/db/repositories.ts`
@@ -321,6 +324,7 @@ export interface CompressedAgroPayload {
   - `getVersionPayload` convierte `number[]` a `Uint8Array`.
   - `listEtlLogs` soporta la vista admin.
   - Integración verificada contra D1 local.
+- **Notas:** Integración local verificada con un Worker temporal: creación y cierre de log, inserción de versión con BLOB, activación atómica, lectura de metadata y payload (`Uint8Array`), y listado de logs. Los datos de prueba se eliminaron de D1 local.
 
 ### T09 — Versionado, hash y gzip
 
