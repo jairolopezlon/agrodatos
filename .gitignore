@@ -1,4 +1,6 @@
 node_modules/
+apps/frontend/node_modules/
+apps/worker-etl/node_modules/
 dist/
 .wrangler/
 .vite/
