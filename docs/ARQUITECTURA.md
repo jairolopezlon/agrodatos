@@ -206,28 +206,40 @@ Estrategias PWA:
 
 ```mermaid
 flowchart LR
-  F[Filtros: municipio, cultivo, año] --> A[Agregaciones]
+  F["Filtros multi-selección:<br/>municipios · cultivos · años"] --> A[Agregaciones]
   C[Toggle: ocultar caña] --> A
   A --> K[KPIs]
   A --> CO[Composición]
   A --> T[Tendencia 2007–2025]
   A --> O[Otros cultivos sin caña]
   A --> P[Productividad t/ha]
-  A --> M[Municipios]
+  A --> M[Municipios comparados]
   A --> H[Cosecha]
   A --> S[Semestres]
 ```
 
 Reglas:
 
-- Una sola página con secciones **Resumen**, **Cultivos**, **Municipios** y **Evolución**.
-- Filtros globales: **Municipio**, **Cultivo** y **Año**; botón **Limpiar filtros**.
-- 2006 se excluye de la tendencia y de los cálculos de crecimiento; si se filtra, se marca **Datos parciales**.
+- Cabecera fija con **AgroDatos** y menú de secciones **Resumen**, **Cultivos**, **Municipios** y **Evolución**.
+- En móvil (≤768 px), filtros, KPIs y gráficos usan `flex-wrap`, `flex-basis` y `max-width: 100%`; la barra inferior es sticky y el pie queda en el flujo normal, sin solaparse.
+- Filtros globales multi-selección en desplegables con buscador: **Municipios** y **Cultivos** incluyen todos por defecto, con “Seleccionar todos” y “Limpiar selección”; **Años** usa “Sin año seleccionado” para agregar la totalidad comparable 2007–2025.
+- Cada filtro muestra un resumen de selección y un botón **Todos**; **Limpiar filtros** restablece el tablero.
+- Sin año seleccionado, las gráficas transversales agregan la **totalidad comparable 2007–2025** y la composición lo indica.
+- Varios años se agregan y la etiqueta muestra **“N años seleccionados”**.
+- Varios municipios activan la comparación de municipios seleccionados (producción y participación).
+- Varios cultivos se reflejan en composición, KPIs, productividad y una línea por cultivo en la evolución, con leyenda y tabla.
+- La evolución siempre cubre 2007–2025 e indica el cultivo en el título cuando hay uno seleccionado.
+- 2006 se excluye de la totalidad y de la tendencia; si se selecciona, se marca **Datos parciales**.
 - Deduplicación anual/semestral por `(municipio, cultivo, año)`: se usa el registro anual si existe.
 - Las subcategorías del mismo cultivo y periodo se suman.
 - Rendimiento ponderado = `sum(produccion) / sum(areaCosechada)`.
+- Los KPIs usan rótulos breves, destacan el valor y dejan periodo/contexto como texto secundario.
+- La composición usa barras horizontales (mejor comparación del resto frente a la caña) y mantiene la alternativa tabular.
+- Los filtros activos se muestran como etiquetas removibles y hay una acción visible para limpiarlos.
+- La navegación fija resalta la sección activa según el scroll.
 - Cada `ChartCard` incluye **Ver datos en tabla** y un estado vacío con **Limpiar filtros**.
-- El interruptor **Ocultar caña** recalcula el panorama sin caña; el gráfico “Otros cultivos” siempre excluye la caña.
+- El interruptor **Ocultar caña** recalcula el panorama sin caña; se bloquea solo si todos los cultivos seleccionados son caña.
+- El gráfico “Otros cultivos” siempre excluye la caña.
 
 ## Cobertura de fuentes
 

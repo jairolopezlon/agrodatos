@@ -20,7 +20,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Ola 7 completa: vista admin y pruebas implementadas.
 - Ola 8 completa: producción desplegada y CI/CD configurado.
 - Ola 9: normalización de cultivos, 2006 parcial, cobertura híbrida y aprobación manual de versiones.
-- Ola 10 pendiente: filtros multi-selección y tablero comparativo (T20).
+- Ola 10 completa: filtros multi-selección y tablero comparativo (T20).
 - Versión activa en producción: `2026.11.09-4fde9c028aae` (25 909 registros, 107 cultivos, 57 periodos).
 - Frontend: https://agrodatos.pages.dev · Worker: https://agrodatos-worker-etl.jairolop88.workers.dev
 
@@ -91,7 +91,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 9 | T19 | Aprobación manual de versiones |
 | 10 | T20 | Filtros multi-selección y tablero comparativo |
 
-**Próxima ola a ejecutar:** Ola 10 (T20) — filtros multi-selección y tablero comparativo.
+**Próxima ola a ejecutar:** todas las olas planificadas están completas; siguiente alcance pendiente de definir.
 
 ---
 
@@ -119,7 +119,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T17 | Pruebas y smoke tests | C. API y automatización | T06, T07, T08, T09, T10, T11 | 7 | Hecho |
 | T18 | Despliegue y CI/CD | E. Operación | T14, T16, T17 | 8 | Hecho |
 | T19 | Aprobación manual de versiones | E. Operación | T08, T10, T16 | 9 | Hecho |
-| T20 | Filtros multi-selección y tablero comparativo | D. Frontend offline | T15 | 10 | Pendiente |
+| T20 | Filtros multi-selección y tablero comparativo | D. Frontend offline | T15 | 10 | Hecho |
 
 ---
 
@@ -555,7 +555,7 @@ export interface CompressedAgroPayload {
 
 ### T20 — Filtros multi-selección y tablero comparativo
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T15.
 - **Ola:** 10.
 - **Archivos:**
@@ -566,6 +566,12 @@ export interface CompressedAgroPayload {
   - `apps/frontend/src/components/charts/ProductionTrendChart.tsx`
   - `apps/frontend/src/components/sections/CultivosSection.tsx`
   - `apps/frontend/src/components/sections/ResumenSection.tsx`
+  - `apps/frontend/src/components/sections/MunicipiosSection.tsx`
+  - `apps/frontend/src/components/sections/EvolucionSection.tsx`
+  - `apps/frontend/src/components/charts/MunicipalityChart.tsx`
+  - `apps/frontend/src/components/charts/HarvestChart.tsx`
+  - `apps/frontend/src/components/charts/OtherCropsChart.tsx`
+  - `apps/frontend/src/styles.css`
   - `apps/frontend/test/aggregations.test.ts`
   - `README.md`, `docs/ARQUITECTURA.md`
 - **Descripción:** permitir comparar varios municipios, cultivos y años, y corregir la lectura de “todos los años”.
@@ -580,7 +586,7 @@ export interface CompressedAgroPayload {
   - Varios años se agregan y la etiqueta indica “N años seleccionados”.
   - El interruptor de caña se bloquea solo si todos los cultivos seleccionados son caña.
   - Tests de agregaciones, typecheck y build pasan.
-- **Notas:** implementación pendiente al cierre de la sesión. El último commit estable es `869a2b0`; el cambio parcial de `aggregations.ts` se revirtió para no dejar el build roto.
+- **Notas:** Implementado y verificado con `pnpm --filter @agrodatos/frontend typecheck`, `test` (11 pruebas) y `build`. Los filtros usan arrays (`municipios`, `cultivos`, `anios`) y se presentan como desplegables nativos accesibles con buscador (normaliza mayúsculas y tildes). Municipios y cultivos incluyen todos por defecto con casillas desmarcadas; “Seleccionar todos” las marca y “Limpiar selección” vuelve al estado predeterminado. Años conserva “Sin año seleccionado (2007–2025)” y distingue “Todos los años”. El responsive se resuelve con `flex-wrap`, `flex-basis` y `max-width: 100%`; la barra inferior es sticky y el pie queda en el flujo normal. En móvil, los filtros se abren como panel inferior desde el botón **Filtros**. No se usó shadcn porque el proyecto no lo tiene instalado. La cabecera queda fija al hacer scroll con **AgroDatos**, el menú de secciones y resaltado de la sección mayormente visible; se ajustó `scroll-margin-top` para que las anclas no queden tapadas. Se mejoró la jerarquía de KPIs, la composición pasó a barras horizontales, los filtros activos se muestran como chips removibles y se reforzaron estados vacíos y accesibilidad. La totalidad comparable es 2007–2025 y 2006 se marca como parcial al seleccionarse. La evolución genera una línea por cultivo con leyenda y tabla; la composición, los KPIs y la productividad reflejan varios cultivos; los municipios seleccionados se comparan entre sí. El interruptor de caña solo se bloquea si todos los cultivos seleccionados son caña.
 
 ## Decisiones técnicas registradas
 

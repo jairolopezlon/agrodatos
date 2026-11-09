@@ -16,7 +16,7 @@ El proyecto implementa un motor ETL en el Edge que extrae, valida, normaliza y c
 
 ## ✅ Estado
 
-Backlog **T00–T19** implementado:
+Backlog **T00–T20** implementado:
 
 - Contratos compartidos, esquema D1, Worker Hono, extracción Socrata.
 - Transformación, normalización de cultivos, Data Quality y cobertura.
@@ -24,6 +24,7 @@ Backlog **T00–T19** implementado:
 - API pública, cron, trigger admin y aprobación manual de versiones.
 - PWA offline, Dexie, TanStack Query, Chart.js y vista admin.
 - Pruebas unitarias, smoke contra Socrata, cobertura y CI/CD.
+- Filtros multi-selección y tablero comparativo de municipios, cultivos y años.
 
 ## 🏗 Arquitectura
 
@@ -188,14 +189,23 @@ Las rutas admin requieren `Authorization: Bearer <ADMIN_API_KEY>`.
 - React Query para lectura asíncrona de IndexedDB.
 - Descarga el payload solo si cambió el hash o `schema_version`.
 - Conserva la versión activa y la anterior; poda las demás.
-- Navegación por anclas: Resumen, Cultivos, Municipios y Evolución.
-- Filtros por municipio, cultivo y año, con botón para limpiar filtros.
-- Tarjetas de insight: producción, cultivo principal, municipio principal y productividad.
+- Cabecera fija con **AgroDatos** y menú de secciones: Resumen, Cultivos, Municipios y Evolución.
+- En móvil, las tarjetas y filtros usan `flex-wrap` para bajar de línea; la barra inferior es sticky y el pie queda en el flujo normal, sin superponerse.
+- Filtros multi-selección en desplegables con buscador: municipios y cultivos incluyen todos por defecto; “Seleccionar todos” los marca y “Limpiar selección” vuelve al estado predeterminado.
+- Años usa “Sin año seleccionado” como estado predeterminado; en ese caso las gráficas transversales agregan los años comparables 2007–2025.
+- Resumen de selección por filtro y botón **Todos** para restablecer cada dimensión.
+- Sin año seleccionado, las gráficas transversales agregan la totalidad comparable **2007–2025**.
+- Varios municipios se comparan entre sí; varios cultivos aparecen en composición, productividad, KPIs y una línea por cultivo en la evolución.
+- Varios años se agregan y la etiqueta indica **“N años seleccionados”**.
+- Tarjetas de insight con rótulos breves, valor principal destacado y periodo/contexto como texto secundario.
+- Composición por barras para comparar mejor los cultivos restantes; la tabla conserva el detalle.
+- Chips de filtros activos con remoción individual y acción visible para limpiar filtros.
 - Gráficos: composición, tendencia 2007–2025, otros cultivos sin caña, productividad t/ha, municipios, éxito de cosecha y semestres.
-- Interruptor **Ocultar caña** para ver el panorama sin la caña.
+- Navegación fija con **AgroDatos** y resaltado de la sección activa al hacer scroll.
+- Interruptor **Ocultar caña** para ver el panorama sin la caña; se bloquea solo si todos los cultivos seleccionados son caña.
 - “Ver datos en tabla” en cada gráfico para lectura accesible.
 - Regla anual vs semestral: si hay ambos, se usa el anual; las subcategorías se suman.
-- 2006 se excluye de la tendencia; si se filtra, se marca **Datos parciales**.
+- 2006 se excluye de la totalidad y de la tendencia; si se selecciona, se marca **Datos parciales**.
 - Funcionamiento offline con fallback a caché.
 - Panel `/admin` con trigger, diff, aplicar/omitir e historial.
 
