@@ -30,13 +30,11 @@ export interface RunSummary {
   validation_report: ValidationReport | null;
 }
 
-export async function runEtl(
+export async function runEtlWithLog(
   env: RunEnv,
-  triggerSource: EtlTriggerSource,
+  etlLogId: number,
+  startedAt = Date.now(),
 ): Promise<RunSummary> {
-  const startedAt = Date.now();
-  const etlLogId = await createEtlLog(env, triggerSource);
-
   let recordsExtracted = 0;
   let recordsRejected = 0;
   let validationReport: ValidationReport | null = null;
@@ -128,4 +126,14 @@ export async function runEtl(
       validation_report: validationReport,
     };
   }
+}
+
+export async function runEtl(
+  env: RunEnv,
+  triggerSource: EtlTriggerSource,
+): Promise<RunSummary> {
+  const startedAt = Date.now();
+  const etlLogId = await createEtlLog(env, triggerSource);
+
+  return runEtlWithLog(env, etlLogId, startedAt);
 }

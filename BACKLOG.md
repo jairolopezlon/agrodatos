@@ -16,6 +16,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - D1 `agrodatos` activa en ENAM; esquema aplicado en local y remoto.
 - Ola 4 implementada: versionado/hash/gzip y API pública.
 - Ola 5 completa: orquestador ETL y cliente offline implementados.
+- Ola 6 parcial: cron y trigger manual implementados; faltan PWA (T14) y visualización (T15).
 
 ---
 
@@ -82,7 +83,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** Ola 6 (T12 + T14 + T15).
+**Próxima ola a ejecutar:** Ola 6 (T14 + T15).
 
 ---
 
@@ -102,7 +103,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T09 | Versionado, hash y gzip | B. Procesamiento | T06, T07 | 4 | Hecho |
 | T10 | Orquestador ETL + Load | B. Procesamiento | T05, T06, T07, T08, T09 | 5 | Hecho |
 | T11 | API Hono y endpoints públicos | C. API y automatización | T08 | 4 | Hecho |
-| T12 | Cron + trigger manual seguro | C. API y automatización | T10, T11 | 6 | Pendiente |
+| T12 | Cron + trigger manual seguro | C. API y automatización | T10, T11 | 6 | Hecho |
 | T13 | Cliente frontend + Dexie | D. Frontend offline | T11 | 5 | Hecho |
 | T14 | PWA y sincronización offline | D. Frontend offline | T13 | 6 | Pendiente |
 | T15 | Visualización de datos (Chart.js) | D. Frontend offline | T13 | 6 | Pendiente |
@@ -399,7 +400,7 @@ export interface CompressedAgroPayload {
 
 ### T12 — Cron + trigger manual seguro
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T10, T11.
 - **Ola:** 6.
 - **Descripción:** automatizar la ejecución del ETL y exponer un trigger administrativo protegido.
@@ -413,6 +414,7 @@ export interface CompressedAgroPayload {
   - Secreto configurado con `wrangler secret put ADMIN_API_KEY`.
   - Comparación de token sin filtrar tiempos (hash o comparación constante).
   - Nota: `scheduled` no es un método de Hono; es un handler del Worker.
+- **Notas:** `src/index.ts` exporta `fetch` y `scheduled`; `wrangler.toml` activa `crons = ["0 3 * * 0"]`. `src/routes/admin.ts` implementa el trigger y la consulta de logs, ambos protegidos con Bearer y comparación constante sobre SHA-256. Prueba local: 401 sin token/incorrecto, 202 con `etl_log_id`, polling hasta `SUCCESS` (26 363/828) y log `CRON` `SUCCESS` vía `/__scheduled`. El secreto de producción queda pendiente: `wrangler secret put ADMIN_API_KEY` (no se inventó una clave real).
 
 ### T17 — Pruebas y smoke tests
 

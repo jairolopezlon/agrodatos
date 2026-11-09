@@ -1,11 +1,13 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Env as EtlEnv } from "./etl/extract";
+import { runEtl } from "./etl/run";
 import { apiRoutes } from "./routes/api";
 
 export interface Env extends EtlEnv {
   DB: D1Database;
   PAGES_ORIGIN?: string;
+  ADMIN_API_KEY?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -22,12 +24,21 @@ app.use(
 
       return origin === allowed ? origin : null;
     },
-    allowMethods: ["GET", "HEAD", "OPTIONS"],
-    allowHeaders: ["Content-Type", "If-None-Match"],
+    allowMethods: ["GET", "HEAD", "POST", "OPTIONS"],
+    allowHeaders: ["Authorization", "Content-Type", "If-None-Match"],
     exposeHeaders: ["ETag", "Content-Encoding", "Cache-Control"],
   }),
 );
 
 app.route("/api", apiRoutes);
 
-export default app;
+export default {
+  fetch: app.fetch,
+  scheduled: async (
+    _controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> => {
+    ctx.waitUntil(runEtl(env, "CRON"));
+  },
+};
