@@ -15,7 +15,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Contratos compartidos (T01), esquema D1 (T02), scaffolding (T03), provisión D1 (T04) y extracción Socrata (T05) implementados.
 - D1 `agrodatos` activa en ENAM; esquema aplicado en local y remoto.
 - Ola 4 implementada: versionado/hash/gzip y API pública.
-- Aún no hay orquestador ETL, frontend offline, cron ni despliegue.
+- Ola 5 parcial: orquestador ETL implementado; falta el cliente offline (T13).
 
 ---
 
@@ -82,7 +82,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** Ola 5 (T10 + T13).
+**Próxima ola a ejecutar:** T13 (cliente offline) — Ola 5.
 
 ---
 
@@ -100,7 +100,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T07 | Data Quality y Circuit Breaker | B. Procesamiento | T01, T05 | 3 | Hecho |
 | T08 | Repositorio D1 | B. Procesamiento | T01, T02, T04 | 3 | Hecho |
 | T09 | Versionado, hash y gzip | B. Procesamiento | T06, T07 | 4 | Hecho |
-| T10 | Orquestador ETL + Load | B. Procesamiento | T05, T06, T07, T08, T09 | 5 | Pendiente |
+| T10 | Orquestador ETL + Load | B. Procesamiento | T05, T06, T07, T08, T09 | 5 | Hecho |
 | T11 | API Hono y endpoints públicos | C. API y automatización | T08 | 4 | Hecho |
 | T12 | Cron + trigger manual seguro | C. API y automatización | T10, T11 | 6 | Pendiente |
 | T13 | Cliente frontend + Dexie | D. Frontend offline | T11 | 5 | Pendiente |
@@ -349,7 +349,7 @@ export interface CompressedAgroPayload {
 
 ### T10 — Orquestador ETL + Load
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T05, T06, T07, T08, T09.
 - **Ola:** 5.
 - **Archivo:** `apps/worker-etl/src/etl/run.ts`
@@ -371,6 +371,7 @@ export interface CompressedAgroPayload {
   - Re-ejecutar sin cambios no genera una versión nueva.
   - Un fallo de validación no inserta ni activa versiones.
   - Retorna un resumen de la ejecución.
+- **Notas:** E2E local contra Socrata real: primera ejecución creó la versión `2026.11.09-f61c89984492` con 26 363 extraídos, 828 rechazados, 25 535 aceptados y gzip de 189 383 bytes; la segunda ejecución reutilizó la versión activa (`created_version: false`). Ambos logs quedaron `SUCCESS` con `validation_report`.
 
 ---
 
