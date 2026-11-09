@@ -11,9 +11,12 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.107.1",
+    "chart.js": "^4.6.1",
     "dexie": "^4.4.7",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^19.3.1",
+    "workbox-window": "^7.4.1"
   },
   "devDependencies": {
     "@agrodatos/shared-types": "workspace:*",

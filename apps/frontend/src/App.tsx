@@ -1,3 +1,4 @@
+import { Dashboard } from "./components/Dashboard";
 import { UnsupportedSchemaVersionError, useAgroData } from "./hooks/useAgroData";
 
 function formatNumber(value: number): string {
@@ -8,7 +9,11 @@ export function App() {
   const { activeVersion, payload, versionQuery, payloadQuery } = useAgroData();
 
   if (versionQuery.isLoading || payloadQuery.isLoading) {
-    return <p>Cargando datos...</p>;
+    return (
+      <main>
+        <p>Cargando datos...</p>
+      </main>
+    );
   }
 
   if (versionQuery.isError || payloadQuery.isError) {
@@ -18,15 +23,27 @@ export function App() {
         ? error.message
         : "No se pudieron cargar los datos. Revisa tu conexión.";
 
-    return <p role="alert">{message}</p>;
+    return (
+      <main>
+        <p role="alert">{message}</p>
+      </main>
+    );
   }
 
   if (!activeVersion) {
-    return <p>No hay una versión de datos activa.</p>;
+    return (
+      <main>
+        <p>No hay una versión de datos activa.</p>
+      </main>
+    );
   }
 
   if (!payload) {
-    return <p>Preparando datos...</p>;
+    return (
+      <main>
+        <p>Preparando datos...</p>
+      </main>
+    );
   }
 
   const municipios = Object.keys(payload.dicts.municipios).length;
@@ -35,12 +52,31 @@ export function App() {
 
   return (
     <main>
-      <h1>AgroDatos</h1>
-      <p>Versión activa: {activeVersion.version_id}</p>
-      <p>Registros: {formatNumber(payload.metadata.total_records)}</p>
-      <p>Municipios: {formatNumber(municipios)}</p>
-      <p>Cultivos: {formatNumber(cultivos)}</p>
-      <p>Periodos: {formatNumber(periodos)}</p>
+      <header>
+        <h1>AgroDatos</h1>
+        <p>Valle del Cauca · versión {activeVersion.version_id}</p>
+      </header>
+
+      <section className="summary" aria-label="Resumen de datos">
+        <article>
+          <strong>{formatNumber(payload.metadata.total_records)}</strong>
+          <span>Registros</span>
+        </article>
+        <article>
+          <strong>{formatNumber(municipios)}</strong>
+          <span>Municipios</span>
+        </article>
+        <article>
+          <strong>{formatNumber(cultivos)}</strong>
+          <span>Cultivos</span>
+        </article>
+        <article>
+          <strong>{formatNumber(periodos)}</strong>
+          <span>Periodos</span>
+        </article>
+      </section>
+
+      <Dashboard key={activeVersion.version_id} payload={payload} />
     </main>
   );
 }

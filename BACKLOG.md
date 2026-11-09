@@ -16,7 +16,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - D1 `agrodatos` activa en ENAM; esquema aplicado en local y remoto.
 - Ola 4 implementada: versionado/hash/gzip y API pública.
 - Ola 5 completa: orquestador ETL y cliente offline implementados.
-- Ola 6 parcial: cron y trigger manual implementados; faltan PWA (T14) y visualización (T15).
+- Ola 6 completa: cron, PWA y visualización implementados.
 
 ---
 
@@ -83,7 +83,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 
-**Próxima ola a ejecutar:** Ola 6 (T14 + T15).
+**Próxima ola a ejecutar:** Ola 7 (T16 + T17).
 
 ---
 
@@ -105,8 +105,8 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T11 | API Hono y endpoints públicos | C. API y automatización | T08 | 4 | Hecho |
 | T12 | Cron + trigger manual seguro | C. API y automatización | T10, T11 | 6 | Hecho |
 | T13 | Cliente frontend + Dexie | D. Frontend offline | T11 | 5 | Hecho |
-| T14 | PWA y sincronización offline | D. Frontend offline | T13 | 6 | Pendiente |
-| T15 | Visualización de datos (Chart.js) | D. Frontend offline | T13 | 6 | Pendiente |
+| T14 | PWA y sincronización offline | D. Frontend offline | T13 | 6 | Hecho |
+| T15 | Visualización de datos (Chart.js) | D. Frontend offline | T13 | 6 | Hecho |
 | T16 | Vista Admin y UI del Trigger ETL | D. Frontend offline | T12, T13 | 7 | Pendiente |
 | T17 | Pruebas y smoke tests | C. API y automatización | T06, T07, T08, T09, T10, T11 | 7 | Pendiente |
 | T18 | Despliegue y CI/CD | E. Operación | T14, T16, T17 | 8 | Pendiente |
@@ -451,7 +451,7 @@ export interface CompressedAgroPayload {
 
 ### T14 — PWA y sincronización offline
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T13.
 - **Ola:** 6.
 - **Descripción:** configurar `vite-plugin-pwa` y las estrategias de caché.
@@ -462,10 +462,11 @@ export interface CompressedAgroPayload {
   - Aviso de actualización disponible.
   - Instalable como PWA con manifest e iconos.
   - No se cachea el token de admin ni respuestas de `/api/admin/*`.
+- **Notas:** `vite.config.ts` configura `registerType: "prompt"`, NetworkFirst para `/api/version`, CacheFirst para `/api/data/*`, precache del app shell y `navigateFallbackDenylist` para `/api/*`. `UpdatePrompt` usa `virtual:pwa-register/react`. Manifest con iconos SVG y PNG 192/512. `workbox-window` se agregó como dependencia explícita. El build genera `sw.js` y `manifest.webmanifest`.
 
 ### T15 — Visualización de datos (Chart.js)
 
-- **Estado:** Pendiente.
+- **Estado:** Hecho.
 - **Depende de:** T13.
 - **Ola:** 6.
 - **Descripción:** construir las vistas y gráficas sobre el store local.
@@ -476,7 +477,7 @@ export interface CompressedAgroPayload {
   - Gráficas responsivas con Chart.js.
   - Estados de carga, vacío y error.
   - Funcionamiento completo sin conexión.
-- **Notas:** no se instala Shadcn UI por defecto porque el stack inicial definió “Tailwind CSS puro”. Si se necesita un combobox con búsqueda, se evalúa una alternativa ligera más adelante.
+- **Notas:** no se instala Shadcn UI por defecto porque el stack inicial definió “Tailwind CSS puro”. Si se necesita un combobox con búsqueda, se evalúa una alternativa ligera más adelante. Implementado con `chart.js` 4.6.1 y `react-chartjs-2` 5.3.1: filtros por municipio/cultivo/año/periodo, agregación por periodo y top 10 de cultivos, gráficas responsivas y estados de carga/vacío/error. El bundle supera 500 kB por Chart.js; se puede dividir en el futuro. `typecheck` y `build` pasan.
 
 ### T16 — Vista Admin y UI del Trigger ETL
 
