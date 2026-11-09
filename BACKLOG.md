@@ -20,6 +20,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Ola 7 completa: vista admin y pruebas implementadas.
 - Ola 8 completa: producción desplegada y CI/CD configurado.
 - Ola 9: normalización de cultivos, 2006 parcial, cobertura híbrida y aprobación manual de versiones.
+- Ola 10 pendiente: filtros multi-selección y tablero comparativo (T20).
 - Versión activa en producción: `2026.11.09-4fde9c028aae` (25 909 registros, 107 cultivos, 57 periodos).
 - Frontend: https://agrodatos.pages.dev · Worker: https://agrodatos-worker-etl.jairolop88.workers.dev
 
@@ -88,8 +89,9 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
 | 9 | T19 | Aprobación manual de versiones |
+| 10 | T20 | Filtros multi-selección y tablero comparativo |
 
-**Próxima ola a ejecutar:** Ninguna — backlog completo (T00–T19).
+**Próxima ola a ejecutar:** Ola 10 (T20) — filtros multi-selección y tablero comparativo.
 
 ---
 
@@ -117,6 +119,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T17 | Pruebas y smoke tests | C. API y automatización | T06, T07, T08, T09, T10, T11 | 7 | Hecho |
 | T18 | Despliegue y CI/CD | E. Operación | T14, T16, T17 | 8 | Hecho |
 | T19 | Aprobación manual de versiones | E. Operación | T08, T10, T16 | 9 | Hecho |
+| T20 | Filtros multi-selección y tablero comparativo | D. Frontend offline | T15 | 10 | Pendiente |
 
 ---
 
@@ -549,6 +552,35 @@ export interface CompressedAgroPayload {
   - Historial de versiones.
   - No re-proponer un hash omitido; `?force=true` para forzar.
 - **Notas:** Implementado y verificado en producción: el ETL creó la versión `PENDING` `2026.11.09-4fde9c028aae` con diff de 374 agregados, 25 535 sin cambios, 0 modificados, 78 cultivos normalizados, 1 640 claves repetidas y periodo nuevo `2006B`; se aplicó desde la API y quedó `ACTIVE`. La versión anterior quedó `SUPERSEDED`. Omitir, forzar con `?force=true` y `NO_CHANGES` se probaron en local.
+
+### T20 — Filtros multi-selección y tablero comparativo
+
+- **Estado:** Pendiente.
+- **Depende de:** T15.
+- **Ola:** 10.
+- **Archivos:**
+  - `apps/frontend/src/lib/aggregations.ts`
+  - `apps/frontend/src/components/Filters.tsx`
+  - `apps/frontend/src/components/Dashboard.tsx`
+  - `apps/frontend/src/components/KpiCards.tsx`
+  - `apps/frontend/src/components/charts/ProductionTrendChart.tsx`
+  - `apps/frontend/src/components/sections/CultivosSection.tsx`
+  - `apps/frontend/src/components/sections/ResumenSection.tsx`
+  - `apps/frontend/test/aggregations.test.ts`
+  - `README.md`, `docs/ARQUITECTURA.md`
+- **Descripción:** permitir comparar varios municipios, cultivos y años, y corregir la lectura de “todos los años”.
+- **Criterios de aceptación:**
+  - `DashboardFilters` usa arrays `municipios`, `cultivos`, `anios`; vacío = todos.
+  - Filtros multi-selección con checkboxes, resumen de selección y botón “Todos”.
+  - Sin año seleccionado, las gráficas transversales agregan **2007–2025** y la dona indica **“Totalidad de años (2007–2025)”**.
+  - 2006 se excluye de la totalidad comparable; si se selecciona, se marca **Datos parciales**.
+  - La evolución indica el cultivo en el título; con varios cultivos muestra una línea por cultivo, leyenda y tabla.
+  - Varios cultivos se reflejan en composición, “Cultivos seleccionados” y productividad.
+  - Varios municipios muestran comparación de municipios seleccionados.
+  - Varios años se agregan y la etiqueta indica “N años seleccionados”.
+  - El interruptor de caña se bloquea solo si todos los cultivos seleccionados son caña.
+  - Tests de agregaciones, typecheck y build pasan.
+- **Notas:** implementación pendiente al cierre de la sesión. El último commit estable es `869a2b0`; el cambio parcial de `aggregations.ts` se revirtió para no dejar el build roto.
 
 ## Decisiones técnicas registradas
 
