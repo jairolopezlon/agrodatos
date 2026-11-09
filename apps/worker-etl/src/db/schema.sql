@@ -19,9 +19,15 @@ CREATE TABLE IF NOT EXISTS data_versions (
     total_records INTEGER NOT NULL,
     payload_gzip BLOB NOT NULL,
     is_active INTEGER DEFAULT 0 CHECK (is_active IN (0, 1)),
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACTIVE', 'DISCARDED', 'SUPERSEDED')),
+    change_summary TEXT,
+    applied_at DATETIME,
+    discarded_at DATETIME,
     etl_log_id INTEGER,
     FOREIGN KEY (etl_log_id) REFERENCES etl_logs(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_etl_logs_status ON etl_logs(status);
 CREATE INDEX IF NOT EXISTS idx_data_versions_active ON data_versions(is_active);
+CREATE INDEX IF NOT EXISTS idx_data_versions_status ON data_versions(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_data_versions_one_active ON data_versions(is_active) WHERE is_active = 1;

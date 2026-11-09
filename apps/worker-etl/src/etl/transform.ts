@@ -3,6 +3,7 @@ import type {
   AgroTuple,
   CompressedAgroPayload,
 } from "@agrodatos/shared-types";
+import { chooseLabel, normalizeKey } from "./normalize.ts";
 
 export interface TransformOptions {
   version?: string;
@@ -49,26 +50,33 @@ export function buildCompressedPayload(
   options: TransformOptions = {},
 ): CompressedAgroPayload {
   const municipioNameById = new Map<number, string>();
-  const cultivoSet = new Set<string>();
+  const cultivoVariants = new Map<string, Map<string, number>>();
   const periodoSet = new Set<string>();
 
   for (const row of rows) {
     if (!municipioNameById.has(row.municipioId)) {
       municipioNameById.set(row.municipioId, row.municipioNombre);
     }
-    cultivoSet.add(row.cultivo);
+
+    const cultivoKey = normalizeKey(row.cultivo);
+    const variants = cultivoVariants.get(cultivoKey) ?? new Map<string, number>();
+    variants.set(row.cultivo, (variants.get(row.cultivo) ?? 0) + 1);
+    cultivoVariants.set(cultivoKey, variants);
+
     periodoSet.add(row.periodo);
   }
 
   const municipioIds = [...municipioNameById.keys()].sort((a, b) => a - b);
-  const cultivos = [...cultivoSet].sort((a, b) => a.localeCompare(b, "es"));
+  const cultivoKeys = [...cultivoVariants.keys()].sort((a, b) =>
+    a.localeCompare(b, "es"),
+  );
   const periodos = [...periodoSet].sort(comparePeriodos);
 
   const municipioIndex = new Map<number, number>(
     municipioIds.map((id, index) => [id, index]),
   );
   const cultivoIndex = new Map<string, number>(
-    cultivos.map((cultivo, index) => [cultivo, index]),
+    cultivoKeys.map((key, index) => [key, index]),
   );
   const periodoIndex = new Map<string, number>(
     periodos.map((periodo, index) => [periodo, index]),
@@ -76,7 +84,7 @@ export function buildCompressedPayload(
 
   const data: AgroTuple[] = rows.map((row) => [
     municipioIndex.get(row.municipioId) ?? 0,
-    cultivoIndex.get(row.cultivo) ?? 0,
+    cultivoIndex.get(normalizeKey(row.cultivo)) ?? 0,
     periodoIndex.get(row.periodo) ?? 0,
     row.anio,
     row.areaSembrada,
@@ -96,7 +104,11 @@ export function buildCompressedPayload(
       municipios: toRecord(
         municipioIds.map((id) => municipioNameById.get(id) ?? ""),
       ),
-      cultivos: toRecord(cultivos),
+      cultivos: toRecord(
+        cultivoKeys.map((key) =>
+          chooseLabel(cultivoVariants.get(key) ?? new Map<string, number>()),
+        ),
+      ),
       periodos: toRecord(periodos),
     },
     data,

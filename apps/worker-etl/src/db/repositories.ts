@@ -1,8 +1,12 @@
 import type {
+  AgroChangeSummary,
   DataVersionRecord,
+  DataVersionStatus,
   EtlLogRecord,
   EtlLogStatus,
   EtlTriggerSource,
+  PendingVersion,
+  VersionHistoryItem,
   VersionMetadata,
 } from "@agrodatos/shared-types";
 
@@ -39,6 +43,114 @@ const VERSION_METADATA_COLUMNS = [
   "total_records",
   "schema_version",
 ].join(", ");
+
+const PENDING_VERSION_COLUMNS = [
+  ...VERSION_METADATA_COLUMNS.split(", "),
+  "status",
+  "change_summary",
+  "etl_log_id",
+  "applied_at",
+  "discarded_at",
+].join(", ");
+
+const VERSION_HISTORY_COLUMNS = [
+  ...VERSION_METADATA_COLUMNS.split(", "),
+  "status",
+  "is_active",
+  "etl_log_id",
+  "applied_at",
+  "discarded_at",
+].join(", ");
+
+const INSERT_VERSION_SQL = `INSERT INTO data_versions (
+  version_id,
+  created_at,
+  schema_version,
+  hash,
+  total_records,
+  payload_gzip,
+  is_active,
+  status,
+  change_summary,
+  applied_at,
+  discarded_at,
+  etl_log_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+const STAGE_VERSION_SQL = `${INSERT_VERSION_SQL}
+ON CONFLICT(version_id) DO UPDATE SET
+  created_at = excluded.created_at,
+  schema_version = excluded.schema_version,
+  hash = excluded.hash,
+  total_records = excluded.total_records,
+  payload_gzip = excluded.payload_gzip,
+  is_active = excluded.is_active,
+  status = excluded.status,
+  change_summary = excluded.change_summary,
+  applied_at = excluded.applied_at,
+  discarded_at = excluded.discarded_at,
+  etl_log_id = excluded.etl_log_id
+WHERE data_versions.is_active = 0`;
+
+interface PendingVersionRow extends VersionMetadata {
+  status: DataVersionStatus;
+  change_summary: string | null;
+  etl_log_id: number;
+  applied_at: string | null;
+  discarded_at: string | null;
+}
+
+function toPayloadBytes(
+  payload: DataVersionRecord["payload_gzip"],
+): Uint8Array {
+  return payload instanceof Uint8Array ? payload : Uint8Array.from(payload);
+}
+
+function insertVersionStatement(
+  env: DbEnv,
+  record: DataVersionRecord,
+  sql = INSERT_VERSION_SQL,
+): D1PreparedStatement {
+  return env.DB.prepare(sql).bind(
+    record.version_id,
+    record.created_at,
+    record.schema_version,
+    record.hash,
+    record.total_records,
+    toPayloadBytes(record.payload_gzip),
+    record.is_active,
+    record.status,
+    record.change_summary,
+    record.applied_at,
+    record.discarded_at,
+    record.etl_log_id,
+  );
+}
+
+function toPendingVersion(row: PendingVersionRow): PendingVersion {
+  let changeSummary: AgroChangeSummary | null = null;
+
+  if (row.change_summary) {
+    try {
+      changeSummary = JSON.parse(row.change_summary) as AgroChangeSummary;
+    } catch {
+      changeSummary = null;
+    }
+  }
+
+  return {
+    version_id: row.version_id,
+    created_at: row.created_at,
+    hash: row.hash,
+    total_records: row.total_records,
+    schema_version: row.schema_version,
+    status: row.status,
+    change_summary: changeSummary,
+    etl_log_id: row.etl_log_id,
+    applied_at: row.applied_at,
+    discarded_at: row.discarded_at,
+  };
+}
 
 export async function createEtlLog(
   env: DbEnv,
@@ -92,34 +204,19 @@ export async function insertDataVersion(
   env: DbEnv,
   record: DataVersionRecord,
 ): Promise<void> {
-  const payload =
-    record.payload_gzip instanceof Uint8Array
-      ? record.payload_gzip
-      : Uint8Array.from(record.payload_gzip);
+  await insertVersionStatement(env, record).run();
+}
 
-  await env.DB.prepare(
-    `INSERT INTO data_versions (
-       version_id,
-       created_at,
-       schema_version,
-       hash,
-       total_records,
-       payload_gzip,
-       is_active,
-       etl_log_id
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      record.version_id,
-      record.created_at,
-      record.schema_version,
-      record.hash,
-      record.total_records,
-      payload,
-      record.is_active,
-      record.etl_log_id,
-    )
-    .run();
+export async function stageDataVersion(
+  env: DbEnv,
+  record: DataVersionRecord,
+): Promise<void> {
+  await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE data_versions SET status = 'SUPERSEDED' WHERE status = 'PENDING'",
+    ),
+    insertVersionStatement(env, record, STAGE_VERSION_SQL),
+  ]);
 }
 
 export async function getActiveVersionMetadata(
@@ -173,26 +270,114 @@ export async function getVersionPayload(
   return Uint8Array.from(row.payload_gzip);
 }
 
+export async function listPendingVersions(
+  env: DbEnv,
+  limit = 20,
+): Promise<PendingVersion[]> {
+  const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 20;
+  const safeLimit = Math.min(Math.max(normalizedLimit, 1), 100);
+  const result = await env.DB.prepare(
+    `SELECT ${PENDING_VERSION_COLUMNS}
+     FROM data_versions
+     WHERE status = 'PENDING'
+     ORDER BY created_at DESC
+     LIMIT ?`,
+  )
+    .bind(safeLimit)
+    .all<PendingVersionRow>();
+
+  return result.results.map(toPendingVersion);
+}
+
+export async function listVersions(
+  env: DbEnv,
+  limit = 20,
+): Promise<VersionHistoryItem[]> {
+  const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 20;
+  const safeLimit = Math.min(Math.max(normalizedLimit, 1), 100);
+  const result = await env.DB.prepare(
+    `SELECT ${VERSION_HISTORY_COLUMNS}
+     FROM data_versions
+     ORDER BY created_at DESC
+     LIMIT ?`,
+  )
+    .bind(safeLimit)
+    .all<VersionHistoryItem>();
+
+  return result.results;
+}
+
+export async function getLatestDiscardedVersion(
+  env: DbEnv,
+): Promise<{ version_id: string; hash: string } | null> {
+  return env.DB.prepare(
+    `SELECT version_id, hash
+     FROM data_versions
+     WHERE status = 'DISCARDED'
+     ORDER BY created_at DESC
+     LIMIT 1`,
+  ).first<{ version_id: string; hash: string }>();
+}
+
 export async function activateVersion(
   env: DbEnv,
   versionId: string,
 ): Promise<void> {
-  const exists = await env.DB.prepare(
-    "SELECT 1 AS found FROM data_versions WHERE version_id = ? LIMIT 1",
+  const version = await env.DB.prepare(
+    "SELECT status FROM data_versions WHERE version_id = ? LIMIT 1",
   )
     .bind(versionId)
-    .first<{ found: number }>();
+    .first<{ status: DataVersionStatus }>();
 
-  if (!exists) {
+  if (!version) {
     throw new Error(`La versión ${versionId} no existe.`);
   }
 
+  if (version.status !== "PENDING") {
+    throw new Error(
+      `La versión ${versionId} no está pendiente de aprobación (estado: ${version.status}).`,
+    );
+  }
+
   await env.DB.batch([
-    env.DB.prepare("UPDATE data_versions SET is_active = 0 WHERE is_active = 1"),
     env.DB.prepare(
-      "UPDATE data_versions SET is_active = 1 WHERE version_id = ?",
+      `UPDATE data_versions
+       SET is_active = 0, status = 'SUPERSEDED'
+       WHERE is_active = 1 AND version_id <> ?`,
+    ).bind(versionId),
+    env.DB.prepare(
+      `UPDATE data_versions
+       SET is_active = 1,
+           status = 'ACTIVE',
+           applied_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE version_id = ? AND status = 'PENDING'`,
+    ).bind(versionId),
+    env.DB.prepare(
+      `UPDATE data_versions
+       SET status = 'SUPERSEDED'
+       WHERE status = 'PENDING' AND version_id <> ?`,
     ).bind(versionId),
   ]);
+}
+
+export async function discardVersion(
+  env: DbEnv,
+  versionId: string,
+): Promise<void> {
+  const result = await env.DB.prepare(
+    `UPDATE data_versions
+     SET status = 'DISCARDED',
+         discarded_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+     WHERE version_id = ? AND status = 'PENDING'`,
+  )
+    .bind(versionId)
+    .run();
+
+  if (result.meta.changes === 0) {
+    throw new Error(
+      `La versión ${versionId} no existe o no está pendiente de aprobación.`,
+    );
+  }
 }
 
 export async function getEtlLog(

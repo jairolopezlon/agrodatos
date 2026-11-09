@@ -2,7 +2,7 @@
 
 Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas en olas de ejecución paralela.
 
-**Última actualización:** 2026-11-08
+**Última actualización:** 2026-11-09
 
 ---
 
@@ -19,6 +19,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Ola 6 completa: cron, PWA y visualización implementados.
 - Ola 7 completa: vista admin y pruebas implementadas.
 - Ola 8 completa: producción desplegada y CI/CD configurado.
+- Ola 9: normalización de cultivos, 2006 parcial, cobertura híbrida y aprobación manual de versiones.
 - Frontend: https://agrodatos.pages.dev · Worker: https://agrodatos-worker-etl.jairolop88.workers.dev
 
 ---
@@ -85,8 +86,9 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | 6 | T12, T14, T15 | Cron/trigger seguro, PWA y visualización |
 | 7 | T16, T17 | Vista Admin y pruebas/smoke tests |
 | 8 | T18 | Despliegue y CI/CD |
+| 9 | T19 | Aprobación manual de versiones |
 
-**Próxima ola a ejecutar:** Ninguna — backlog completo (T00–T18).
+**Próxima ola a ejecutar:** Ninguna — backlog completo (T00–T19).
 
 ---
 
@@ -113,6 +115,7 @@ Se validó el backlog propuesto y se aplicaron estos ajustes:
 | T16 | Vista Admin y UI del Trigger ETL | D. Frontend offline | T12, T13 | 7 | Hecho |
 | T17 | Pruebas y smoke tests | C. API y automatización | T06, T07, T08, T09, T10, T11 | 7 | Hecho |
 | T18 | Despliegue y CI/CD | E. Operación | T14, T16, T17 | 8 | Hecho |
+| T19 | Aprobación manual de versiones | E. Operación | T08, T10, T16 | 9 | Hecho |
 
 ---
 
@@ -254,7 +257,7 @@ export interface CompressedAgroPayload {
   - Fallbacks para los nombres reales de la fuente vigente (`rea_sembrada`, `rea_cosechada`, `producci_n`, `rendimiento`).
   - Smoke test con ~26 363 registros.
   - Sin dependencias externas adicionales.
-- **Notas:** Smoke test real: 26 363 registros (15 774 históricos + 10 589 vigentes), 42 municipios, 172 cultivos y 57 periodos. Reintentos con backoff exponencial y `Retry-After`; timeout con `AbortSignal.timeout`. `index.ts` extiende `Env` para exigir `DB` y mantener `SOCRATA_APP_TOKEN` opcional.
+- **Notas:** Smoke test real: 26 363 registros (15 774 históricos + 10 589 vigentes), 42 municipios, 107 cultivos canónicos y 57 periodos. 2006 se incluye como año parcial (374 registros, 42 municipios, 24 cultivos, periodo 2006B). Reintentos con backoff exponencial y `Retry-After`; timeout con `AbortSignal.timeout`. `index.ts` extiende `Env` para exigir `DB` y mantener `SOCRATA_APP_TOKEN` opcional.
 
 ---
 
@@ -278,7 +281,7 @@ export interface CompressedAgroPayload {
   - No se pierden registros semestrales (`2019A`, `2019B`).
   - Entrada vacía produce un payload válido con diccionarios y data vacíos.
   - Pruebas de determinismo: mismo input produce mismo output.
-- **Notas:** Implementado `buildCompressedPayload(rows, options)`. Smoke test con 25 535 registros aceptados: 42 municipios, 172 cultivos y 56 periodos; dos ejecuciones con el mismo input produjeron payloads idénticos. Los diccionarios se ajustaron al tipo `Record<number, string>` de `@agrodatos/shared-types`.
+- **Notas:** Implementado `buildCompressedPayload(rows, options)`. Los cultivos se agrupan por clave canónica (mayúsculas, sin tildes, Ñ preservada) y la etiqueta visible se mantiene en mayúsculas con tildes. Se pasa de 172 etiquetas crudas a 107 cultivos canónicos. Smoke test con 25 909 aceptados: 42 municipios, 107 cultivos y 57 periodos; dos ejecuciones con el mismo input produjeron payloads idénticos. Los diccionarios se ajustaron al tipo `Record<number, string>` de `@agrodatos/shared-types`.
 
 ### T07 — Data Quality y Circuit Breaker
 
@@ -304,7 +307,7 @@ export interface CompressedAgroPayload {
   - Un dato atípico aislado no bloquea toda la actualización.
   - El reporte se guarda en `etl_logs.validation_report`.
   - Umbrales definidos como constantes configurables.
-- **Notas:** Implementado `validateAgroData(rows, thresholds)`. Smoke test real: 26 363 registros → 25 535 aceptados y 828 rechazados (3,14%), sin errores fatales. Motivos: 454 `area_cosechada_mayor_que_area_sembrada` y 374 `anio_fuera_de_rango`.
+- **Notas:** Implementado `validateAgroData(rows, thresholds)` con `minYear = 2006`. Smoke test real: 26 363 registros → 25 909 aceptados y 454 rechazados (1,72%), sin errores fatales. El único motivo de rechazo es `area_cosechada_mayor_que_area_sembrada`. Se agregó el guard de cobertura en `coverage.ts`: fatal para faltantes graves y advertencia para años parciales como 2006 (24 cultivos).
 
 ### T08 — Repositorio D1
 
@@ -328,7 +331,7 @@ export interface CompressedAgroPayload {
   - `getVersionPayload` convierte `number[]` a `Uint8Array`.
   - `listEtlLogs` soporta la vista admin.
   - Integración verificada contra D1 local.
-- **Notas:** Integración local verificada con un Worker temporal: creación y cierre de log, inserción de versión con BLOB, activación atómica, lectura de metadata y payload (`Uint8Array`), y listado de logs. Los datos de prueba se eliminaron de D1 local.
+- **Notas:** Integración local verificada: creación y cierre de log, staging de versión `PENDING` con `change_summary`, activación atómica, listado de pendientes, aplicar/omitir, historial, lectura de metadata y payload (`Uint8Array`), y listado de logs. El índice único parcial garantiza una sola versión activa.
 
 ### T09 — Versionado, hash y gzip
 
@@ -375,7 +378,7 @@ export interface CompressedAgroPayload {
   - Re-ejecutar sin cambios no genera una versión nueva.
   - Un fallo de validación no inserta ni activa versiones.
   - Retorna un resumen de la ejecución.
-- **Notas:** E2E local contra Socrata real: primera ejecución creó la versión `2026.11.09-f61c89984492` con 26 363 extraídos, 828 rechazados, 25 535 aceptados y gzip de 189 383 bytes; la segunda ejecución reutilizó la versión activa (`created_version: false`). Ambos logs quedaron `SUCCESS` con `validation_report`.
+- **Notas:** El orquestador ahora crea una versión `PENDING` con diff y no activa automáticamente. E2E local: primera ejecución con 26 363 extraídos, 25 909 aceptados, 454 rechazados y gzip de 190 836 bytes; la versión `2026.11.09-4fde9c028aae` quedó `PENDING` y se aplicó desde la API. La segunda ejecución devolvió `NO_CHANGES`. Los logs guardan `validation_report` con cobertura y decisión.
 
 ---
 
@@ -417,7 +420,7 @@ export interface CompressedAgroPayload {
   - Secreto configurado con `wrangler secret put ADMIN_API_KEY`.
   - Comparación de token sin filtrar tiempos (hash o comparación constante).
   - Nota: `scheduled` no es un método de Hono; es un handler del Worker.
-- **Notas:** `src/index.ts` exporta `fetch` y `scheduled`; `wrangler.toml` activa `crons = ["0 3 * * 0"]`. `src/routes/admin.ts` implementa el trigger y la consulta de logs, ambos protegidos con Bearer y comparación constante sobre SHA-256. Prueba local: 401 sin token/incorrecto, 202 con `etl_log_id`, polling hasta `SUCCESS` (26 363/828) y log `CRON` `SUCCESS` vía `/__scheduled`. El secreto de producción queda pendiente: `wrangler secret put ADMIN_API_KEY` (no se inventó una clave real).
+- **Notas:** `src/index.ts` exporta `fetch` y `scheduled`; `wrangler.toml` activa `crons = ["0 3 * * 1"]` (Cloudflare usa 1 = domingo). `src/routes/admin.ts` implementa el trigger, logs, pendientes, aplicar/omitir e historial, protegidos con Bearer y comparación constante sobre SHA-256. Prueba local: 401 sin token/incorrecto, 202 con `etl_log_id`, polling hasta `SUCCESS` y log `CRON` `SUCCESS` vía `/__scheduled`. `ADMIN_API_KEY` está configurada como secreto en producción.
 
 ### T17 — Pruebas y smoke tests
 
@@ -431,7 +434,7 @@ export interface CompressedAgroPayload {
   - Smoke opcional contra Socrata real: > 20 000 registros, gzip < 2 MB, `schema_version` correcto.
   - Framework: `node:test` con `--experimental-strip-types`.
   - No se exige cobertura alta; sí cubrir los caminos que pueden corromper datos.
-- **Notas:** 25 pruebas unitarias en `apps/worker-etl/test/` con `node:test` (sin dependencias nuevas): `toNumber`, adaptadores, paginación/reintentos/errores, determinismo y entrada vacía de transformación, reglas y errores fatales de validación, SHA-256, gzip y `buildVersion`. Script `smoke` contra Socrata real: 26 363 registros, 25 535 aceptados, 828 rechazados, gzip de 189 383 bytes y `schema_version: 1`. La integración D1/Hono se verificó con Wrangler local en T04, T08, T11, T12 y T16.
+- **Notas:** 41 pruebas unitarias en `apps/worker-etl/test/` con `node:test` (sin dependencias nuevas): `toNumber`, adaptadores, paginación/reintentos/errores, normalización de cultivos, determinismo y entrada vacía de transformación, reglas y errores fatales de validación, cobertura, diff con duplicados, SHA-256, gzip y `buildVersion`. Script `smoke` contra Socrata real: 26 363 registros, 25 909 aceptados, 454 rechazados, gzip de 190 836 bytes, 107 cultivos y 57 periodos. Script `coverage` con modo estricto y snapshot. La integración D1/Hono se verificó con Wrangler local en T04, T08, T11, T12, T16 y T19.
 
 ---
 
@@ -497,7 +500,7 @@ export interface CompressedAgroPayload {
   - Visualización de estado, registros extraídos, rechazados, duración y error.
   - Tabla con los últimos logs del ETL.
   - Nota de seguridad: para producción se recomienda Cloudflare Access sobre `/admin` y `/api/admin/*`.
-- **Notas:** `main.tsx` enruta `/admin` a `AdminPage`. La clave vive solo en estado React; el trigger usa Bearer, el polling es cada 2.5 s y la tabla consume el nuevo `GET /api/admin/etl?limit=20` (protegido). Probado el listado: 401 sin token y 200 con token. `typecheck` y `build` pasan.
+- **Notas:** `main.tsx` enruta `/admin` a `AdminPage`. La clave vive solo en estado React; el trigger usa Bearer, el polling es cada 2.5 s y la UI muestra diff, aplicar/omitir, historial y logs. Incluye `PendingChanges`, confirmación antes de decidir y `?force=true` para reconsiderar un hash omitido. Probado el listado: 401 sin token y 200 con token. `typecheck` y `build` pasan.
 
 ---
 
@@ -519,6 +522,28 @@ export interface CompressedAgroPayload {
 - **Notas:** Frontend en `https://agrodatos.pages.dev` y Worker en `https://agrodatos-worker-etl.jairolop88.workers.dev`. D1 remoto con esquema aplicado; cron activo `0 3 * * 1` (Cloudflare usa 1 = domingo; `0` es inválido). `ADMIN_API_KEY` configurada como secreto (su valor no se versiona); `SOCRATA_APP_TOKEN` omitido por decisión del usuario. ETL de producción verificado: log `SUCCESS`, 26 363 extraídos, 828 rechazados, versión `2026.11.09-f61c89984492`, 25 535 registros y gzip de 189 383 bytes. Se agregaron `ci.yml`, `deploy.yml`, `docs/DEPLOY.md` y la sección de despliegue del README. La creación inicial del proyecto Pages requirió `--force` por la delegación de Wrangler 4.158; los despliegues posteriores van directo a Pages. El workflow `CI` pasó en GitHub Actions; el job de deploy queda condicionado a `DEPLOY_ENABLED=true` y a configurar los secrets de GitHub (aún no configurados), por lo que el despliegue productivo se realizó manualmente.
 
 ---
+
+### T19 — Aprobación manual de versiones
+
+- **Estado:** Hecho.
+- **Depende de:** T08, T10, T16.
+- **Ola:** 9.
+- **Archivos:**
+  - `apps/worker-etl/src/etl/diff.ts`
+  - `apps/worker-etl/src/etl/coverage.ts`
+  - `apps/worker-etl/src/etl/normalize.ts`
+  - `apps/worker-etl/src/db/migrations/001_version_approval.sql`
+  - `apps/worker-etl/src/routes/admin.ts`
+  - `apps/frontend/src/components/PendingChanges.tsx`
+  - `apps/frontend/src/components/AdminPage.tsx`
+- **Descripción:** comparar la versión nueva con la activa y permitir aplicarla u omitirla.
+- **Criterios de aceptación:**
+  - Una sola versión `PENDING` a la vez.
+  - Diff de altas, bajas, modificaciones, diccionarios y cultivos normalizados.
+  - Aplicación atómica y conservación de la versión activa anterior.
+  - Historial de versiones.
+  - No re-proponer un hash omitido; `?force=true` para forzar.
+- **Notas:** Implementado y verificado localmente: primera ejecución crea `PENDING`, el diff usa claves normalizadas, aplicar activa la versión y una segunda ejecución devuelve `NO_CHANGES`. La versión con 2006 se aplicará en producción al final del despliegue.
 
 ## Decisiones técnicas registradas
 

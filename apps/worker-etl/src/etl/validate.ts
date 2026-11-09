@@ -1,4 +1,7 @@
-import type { AgroDataNormalized } from "@agrodatos/shared-types";
+import type {
+  AgroDataNormalized,
+  CoverageReport,
+} from "@agrodatos/shared-types";
 
 export interface ValidationThresholds {
   minYear: number;
@@ -8,7 +11,7 @@ export interface ValidationThresholds {
 }
 
 export const DEFAULT_VALIDATION_THRESHOLDS: ValidationThresholds = {
-  minYear: 2007,
+  minYear: 2006,
   maxYear: 2025,
   maxRejectionRate: 0.05,
   maxAreaSembrada: 150_000,
@@ -28,6 +31,7 @@ export interface ValidationReport {
   thresholds: ValidationThresholds;
   reasons: Record<string, number>;
   fatal_errors: string[];
+  coverage?: CoverageReport;
 }
 
 export interface ValidationResult {

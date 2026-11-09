@@ -49,12 +49,19 @@ test("rechaza valores negativos", () => {
 });
 
 test("rechaza año fuera de rango", () => {
-  const result = validateAgroData([row({ anio: 2006 })]);
+  const result = validateAgroData([row({ anio: 2005 })]);
 
   assert.equal(
     result.rejected[0].reasons.includes("anio_fuera_de_rango"),
     true,
   );
+});
+
+test("acepta 2006 como año válido", () => {
+  const result = validateAgroData([row({ anio: 2006 })]);
+
+  assert.equal(result.accepted.length, 1);
+  assert.equal(result.rejected.length, 0);
 });
 
 test("rechaza municipio inválido", () => {

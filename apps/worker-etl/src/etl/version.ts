@@ -47,6 +47,15 @@ export async function gzipJson(input: unknown): Promise<Uint8Array> {
   return new Uint8Array(buffer);
 }
 
+export async function gunzipJson<T>(input: Uint8Array): Promise<T> {
+  const decompressed = new Blob([input])
+    .stream()
+    .pipeThrough(new DecompressionStream("gzip"));
+  const text = await new Response(decompressed).text();
+
+  return JSON.parse(text) as T;
+}
+
 export function buildVersionId(date: Date, hash: string): string {
   const day = date.toISOString().slice(0, 10).replace(/-/g, ".");
   return `${day}-${hash.slice(0, 12)}`;

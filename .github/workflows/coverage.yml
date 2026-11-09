@@ -1,0 +1,35 @@
+name: Coverage
+
+on:
+  workflow_dispatch:
+    inputs:
+      strict:
+        description: Comparar contra coverage.snapshot.json
+        type: boolean
+        default: false
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Structural coverage
+        if: ${{ !inputs.strict }}
+        run: pnpm --filter @agrodatos/worker-etl coverage
+
+      - name: Strict coverage
+        if: ${{ inputs.strict }}
+        run: pnpm --filter @agrodatos/worker-etl coverage:strict

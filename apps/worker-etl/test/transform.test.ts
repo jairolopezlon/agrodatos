@@ -50,7 +50,7 @@ test("buildCompressedPayload produce diccionarios y tuplas deterministas", () =>
   assert.deepEqual(first, second);
   assert.equal(first.metadata.total_records, 3);
   assert.deepEqual(first.dicts.municipios, { 0: "Cali", 1: "Pradera" });
-  assert.deepEqual(first.dicts.cultivos, { 0: "Acelga", 1: "Yuca" });
+  assert.deepEqual(first.dicts.cultivos, { 0: "ACELGA", 1: "YUCA" });
   assert.deepEqual(first.dicts.periodos, {
     0: "2019A",
     1: "2020A",
@@ -73,4 +73,40 @@ test("buildCompressedPayload maneja entrada vacía", () => {
     periodos: {},
   });
   assert.deepEqual(payload.data, []);
+});
+
+test("buildCompressedPayload unifica variantes de cultivo", () => {
+  const payload = buildCompressedPayload(
+    [
+      {
+        municipioId: 76001,
+        municipioNombre: "Cali",
+        cultivo: "Café",
+        anio: 2019,
+        periodo: "2019A",
+        areaSembrada: 1,
+        areaCosechada: 1,
+        produccion: 1,
+        rendimiento: 1,
+      },
+      {
+        municipioId: 76001,
+        municipioNombre: "Cali",
+        cultivo: "CAFE",
+        anio: 2019,
+        periodo: "2019B",
+        areaSembrada: 2,
+        areaCosechada: 2,
+        produccion: 2,
+        rendimiento: 2,
+      },
+    ],
+    { updatedAt: "2026-01-01T00:00:00.000Z" },
+  );
+
+  assert.deepEqual(payload.dicts.cultivos, { 0: "CAFÉ" });
+  assert.deepEqual(
+    payload.data.map((tuple) => tuple[1]),
+    [0, 0],
+  );
 });

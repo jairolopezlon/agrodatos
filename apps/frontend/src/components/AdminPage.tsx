@@ -1,15 +1,66 @@
-import type { EtlLogRecord } from "@agrodatos/shared-types";
+import type {
+  EtlLogRecord,
+  PendingVersion,
+  VersionHistoryItem,
+} from "@agrodatos/shared-types";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchEtlLog, fetchEtlLogs, triggerEtl } from "../api/admin";
+import {
+  applyPendingVersion,
+  discardPendingVersion,
+  fetchEtlLog,
+  fetchEtlLogs,
+  fetchPendingVersions,
+  fetchVersionHistory,
+  triggerEtl,
+} from "../api/admin";
 import { ApiError } from "../api/client";
+import { PendingChanges } from "./PendingChanges";
+
+interface LogReport {
+  decision?: string;
+  coverage?: {
+    warnings?: string[];
+  };
+}
+
+function parseLogReport(value: string | null): LogReport | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as LogReport;
+  } catch {
+    return null;
+  }
+}
+
+function formatDate(value: string | null): string {
+  return value ? new Date(value).toLocaleString("es-CO") : "—";
+}
+
+function formatNumber(value: number | null): string {
+  return value === null
+    ? "—"
+    : new Intl.NumberFormat("es-CO").format(value);
+}
 
 export function AdminPage() {
   const [apiKey, setApiKey] = useState("");
   const [logs, setLogs] = useState<EtlLogRecord[]>([]);
+  const [pendingVersions, setPendingVersions] = useState<PendingVersion[]>([]);
+  const [versionHistory, setVersionHistory] = useState<VersionHistoryItem[]>(
+    [],
+  );
   const [activeLog, setActiveLog] = useState<EtlLogRecord | null>(null);
   const [isTriggering, setIsTriggering] = useState(false);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [isLoadingPending, setIsLoadingPending] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [decisionBusy, setDecisionBusy] = useState<string | null>(null);
+  const [force, setForce] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const pollTimer = useRef<number | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -28,8 +79,7 @@ export function AdminPage() {
     setError(null);
 
     try {
-      const result = await fetchEtlLogs(apiKey, 20);
-      setLogs(result);
+      setLogs(await fetchEtlLogs(apiKey, 20));
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -41,6 +91,52 @@ export function AdminPage() {
     }
   }, [apiKey]);
 
+  const loadPending = useCallback(async () => {
+    if (!apiKey) {
+      return;
+    }
+
+    setIsLoadingPending(true);
+    setError(null);
+
+    try {
+      setPendingVersions(await fetchPendingVersions(apiKey, 20));
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudieron cargar las versiones pendientes.",
+      );
+    } finally {
+      setIsLoadingPending(false);
+    }
+  }, [apiKey]);
+
+  const loadHistory = useCallback(async () => {
+    if (!apiKey) {
+      return;
+    }
+
+    setIsLoadingHistory(true);
+    setError(null);
+
+    try {
+      setVersionHistory(await fetchVersionHistory(apiKey, 20));
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo cargar el historial de versiones.",
+      );
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [apiKey]);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadLogs(), loadPending(), loadHistory()]);
+  }, [loadHistory, loadLogs, loadPending]);
+
   const startPolling = useCallback(
     (logId: number) => {
       stopPolling();
@@ -51,7 +147,7 @@ export function AdminPage() {
 
           if (log.status !== "RUNNING") {
             stopPolling();
-            await loadLogs();
+            await refreshAll();
           }
         } catch (err) {
           setError(
@@ -63,7 +159,7 @@ export function AdminPage() {
         }
       }, 2500);
     },
-    [apiKey, loadLogs, stopPolling],
+    [apiKey, refreshAll, stopPolling],
   );
 
   useEffect(() => stopPolling, [stopPolling]);
@@ -71,6 +167,11 @@ export function AdminPage() {
   useEffect(() => {
     stopPolling();
     setActiveLog(null);
+    setLogs([]);
+    setPendingVersions([]);
+    setVersionHistory([]);
+    setError(null);
+    setMessage(null);
   }, [apiKey, stopPolling]);
 
   const handleTrigger = async () => {
@@ -80,9 +181,10 @@ export function AdminPage() {
 
     setIsTriggering(true);
     setError(null);
+    setMessage(null);
 
     try {
-      const { etl_log_id } = await triggerEtl(apiKey);
+      const { etl_log_id } = await triggerEtl(apiKey, force);
       setActiveLog(null);
       startPolling(etl_log_id);
     } catch (err) {
@@ -96,11 +198,55 @@ export function AdminPage() {
     }
   };
 
+  const handleDecision = async (
+    versionId: string,
+    action: "apply" | "omit",
+  ) => {
+    const verb = action === "apply" ? "aplicar" : "omitir";
+
+    if (!window.confirm(`¿Seguro que quieres ${verb} la versión ${versionId}?`)) {
+      return;
+    }
+
+    setDecisionBusy(versionId);
+    setError(null);
+    setMessage(null);
+
+    try {
+      if (action === "apply") {
+        await applyPendingVersion(apiKey, versionId);
+      } else {
+        await discardPendingVersion(apiKey, versionId);
+      }
+
+      setMessage(
+        action === "apply"
+          ? `Versión ${versionId} aplicada.`
+          : `Versión ${versionId} omitida.`,
+      );
+      await refreshAll();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo procesar la versión pendiente.",
+      );
+    } finally {
+      setDecisionBusy(null);
+    }
+  };
+
+  const report = activeLog ? parseLogReport(activeLog.validation_report) : null;
+  const isRefreshing =
+    isLoadingLogs || isLoadingPending || isLoadingHistory;
+
   return (
     <main>
       <header>
         <h1>Administración ETL</h1>
-        <p>Dispara la actualización y consulta el estado de las ejecuciones.</p>
+        <p>
+          Dispara la actualización, revisa el diff y decide si aplicar u omitir.
+        </p>
       </header>
 
       <section className="admin-form" aria-label="Control del ETL">
@@ -114,6 +260,14 @@ export function AdminPage() {
             placeholder="Clave de administración"
           />
         </label>
+        <label className="admin-checkbox">
+          <input
+            type="checkbox"
+            checked={force}
+            onChange={(event) => setForce(event.target.checked)}
+          />
+          Forzar si fue omitido
+        </label>
         <button
           type="button"
           onClick={() => void handleTrigger()}
@@ -123,10 +277,10 @@ export function AdminPage() {
         </button>
         <button
           type="button"
-          onClick={() => void loadLogs()}
-          disabled={!apiKey || isLoadingLogs}
+          onClick={() => void refreshAll()}
+          disabled={!apiKey || isRefreshing}
         >
-          {isLoadingLogs ? "Cargando..." : "Actualizar logs"}
+          {isRefreshing ? "Cargando..." : "Actualizar"}
         </button>
       </section>
 
@@ -136,6 +290,7 @@ export function AdminPage() {
       </p>
 
       {error && <p role="alert">{error}</p>}
+      {message && <p className="admin-success">{message}</p>}
 
       {activeLog && (
         <section className="admin-status" aria-label="Estado del ETL">
@@ -143,14 +298,71 @@ export function AdminPage() {
           <p>
             Estado: <strong>{activeLog.status}</strong>
           </p>
-          <p>Extraídos: {activeLog.records_extracted}</p>
-          <p>Rechazados: {activeLog.records_rejected}</p>
-          <p>Duración: {activeLog.execution_time_ms ?? "—"} ms</p>
+          <p>Extraídos: {formatNumber(activeLog.records_extracted)}</p>
+          <p>Rechazados: {formatNumber(activeLog.records_rejected)}</p>
+          <p>Duración: {formatNumber(activeLog.execution_time_ms)} ms</p>
+          {report?.decision && <p>Decisión: {report.decision}</p>}
+          {report?.coverage?.warnings?.map((warning) => (
+            <p key={warning} className="pending-warning">
+              {warning}
+            </p>
+          ))}
           {activeLog.error_message && (
             <p role="alert">Error: {activeLog.error_message}</p>
           )}
         </section>
       )}
+
+      <section className="admin-pending" aria-label="Cambios pendientes">
+        <h2>Cambios pendientes</h2>
+        {pendingVersions.length === 0 ? (
+          <p>No hay cambios pendientes.</p>
+        ) : (
+          pendingVersions.map((version) => (
+            <PendingChanges
+              key={version.version_id}
+              version={version}
+              isBusy={decisionBusy === version.version_id}
+              onApply={() => void handleDecision(version.version_id, "apply")}
+              onOmit={() => void handleDecision(version.version_id, "omit")}
+            />
+          ))
+        )}
+      </section>
+
+      <section className="admin-history" aria-label="Historial de versiones">
+        <details>
+          <summary>Historial de versiones ({versionHistory.length})</summary>
+          {versionHistory.length === 0 ? (
+            <p>Sin historial cargado.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Versión</th>
+                  <th>Estado</th>
+                  <th>Registros</th>
+                  <th>Creada</th>
+                  <th>Aplicada</th>
+                  <th>Omitida</th>
+                </tr>
+              </thead>
+              <tbody>
+                {versionHistory.map((version) => (
+                  <tr key={version.version_id}>
+                    <td>{version.version_id}</td>
+                    <td>{version.status}</td>
+                    <td>{formatNumber(version.total_records)}</td>
+                    <td>{formatDate(version.created_at)}</td>
+                    <td>{formatDate(version.applied_at)}</td>
+                    <td>{formatDate(version.discarded_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </details>
+      </section>
 
       <section className="admin-logs" aria-label="Últimos logs del ETL">
         <h2>Últimos logs</h2>
@@ -167,18 +379,22 @@ export function AdminPage() {
                 <th>Extraídos</th>
                 <th>Rechazados</th>
                 <th>Duración</th>
+                <th>Decisión</th>
               </tr>
             </thead>
             <tbody>
               {logs.map((log) => (
                 <tr key={log.id}>
                   <td>{log.id}</td>
-                  <td>{new Date(log.started_at).toLocaleString("es-CO")}</td>
+                  <td>{formatDate(log.started_at)}</td>
                   <td>{log.trigger_source}</td>
                   <td>{log.status}</td>
-                  <td>{log.records_extracted}</td>
-                  <td>{log.records_rejected}</td>
-                  <td>{log.execution_time_ms ?? "—"}</td>
+                  <td>{formatNumber(log.records_extracted)}</td>
+                  <td>{formatNumber(log.records_rejected)}</td>
+                  <td>{formatNumber(log.execution_time_ms)}</td>
+                  <td>
+                    {parseLogReport(log.validation_report)?.decision ?? "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>

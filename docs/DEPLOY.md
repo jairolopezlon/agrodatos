@@ -43,8 +43,18 @@ pnpm --filter @agrodatos/worker-etl exec wrangler d1 execute agrodatos --remote 
 Verificar tablas e índices:
 
 ```bash
-pnpm --filter @agrodatos/worker-etl exec wrangler d1 execute agrodatos --remote --command="SELECT type, name FROM sqlite_master WHERE name IN ('etl_logs','data_versions','idx_etl_logs_status','idx_data_versions_active') ORDER BY type, name;"
+pnpm --filter @agrodatos/worker-etl exec wrangler d1 execute agrodatos --remote --command="SELECT type, name FROM sqlite_master WHERE name IN ('etl_logs','data_versions','idx_etl_logs_status','idx_data_versions_active','idx_data_versions_status','idx_data_versions_one_active') ORDER BY type, name;"
 ```
+
+## Migración de aprobación de versiones
+
+Para una base existente creada antes del flujo de aprobación, aplicar una sola vez:
+
+```bash
+pnpm --filter @agrodatos/worker-etl exec wrangler d1 execute agrodatos --remote --file=src/db/migrations/001_version_approval.sql
+```
+
+La migración agrega `status`, `change_summary`, `applied_at` y `discarded_at`, marca la versión activa actual como `ACTIVE` y crea el índice único de una sola versión activa. Aplicarla **antes** de desplegar el Worker nuevo.
 
 ## Secretos del Worker
 
@@ -77,6 +87,37 @@ El proyecto de Pages se crea una sola vez. Con Wrangler 4.158 la creación inici
 ```bash
 pnpm --filter @agrodatos/worker-etl exec wrangler pages project create agrodatos --production-branch main --force
 ```
+
+## Aprobación de versiones
+
+El ETL ya no activa automáticamente. Si el hash cambia, crea una versión `PENDING` con un diff y mantiene la versión activa anterior. La decisión se toma en `https://agrodatos.pages.dev/admin` o por API:
+
+```bash
+# Listar pendientes
+curl -H "Authorization: Bearer <ADMIN_API_KEY>" \
+  https://agrodatos-worker-etl.jairolop88.workers.dev/api/admin/pending
+
+# Aplicar una versión
+curl -X POST -H "Authorization: Bearer <ADMIN_API_KEY>" \
+  https://agrodatos-worker-etl.jairolop88.workers.dev/api/admin/pending/<version_id>/apply
+
+# Omitir una versión
+curl -X POST -H "Authorization: Bearer <ADMIN_API_KEY>" \
+  https://agrodatos-worker-etl.jairolop88.workers.dev/api/admin/pending/<version_id>/omit
+
+# Historial
+curl -H "Authorization: Bearer <ADMIN_API_KEY>" \
+  https://agrodatos-worker-etl.jairolop88.workers.dev/api/admin/versions
+```
+
+Si una versión fue omitida y el mismo hash vuelve a aparecer, el ETL no la propone de nuevo. Para forzar la comparación:
+
+```bash
+curl -X POST -H "Authorization: Bearer <ADMIN_API_KEY>" \
+  "https://agrodatos-worker-etl.jairolop88.workers.dev/api/admin/trigger?force=true"
+```
+
+La primera versión pendiente después de incluir 2006 debe mostrar 25.909 registros, 454 rechazados, 107 cultivos y 57 periodos. Se aplica desde `/admin` cuando se revise el diff.
 
 ## GitHub Actions
 
@@ -123,6 +164,30 @@ El trigger responde `202` con `etl_log_id`; el estado se consulta en:
 curl -H "Authorization: Bearer <ADMIN_API_KEY>" \
   https://agrodatos-worker-etl.jairolop88.workers.dev/api/admin/etl/<etl_log_id>
 ```
+
+Cuando el log termine, revisar `/api/admin/pending` y aplicar u omitir la versión.
+
+## Cobertura de fuentes
+
+Validación estructural por defecto:
+
+```bash
+pnpm --filter @agrodatos/worker-etl coverage
+```
+
+Comparación estricta contra el snapshot:
+
+```bash
+pnpm --filter @agrodatos/worker-etl coverage:strict
+```
+
+Regenerar el snapshot después de un cambio intencional:
+
+```bash
+pnpm --filter @agrodatos/worker-etl coverage:update
+```
+
+El workflow `Coverage` es manual (`workflow_dispatch`) y permite ejecutar el modo estricto con un input booleano. No requiere secretos.
 
 ## Migraciones futuras
 

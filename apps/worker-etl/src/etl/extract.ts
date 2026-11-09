@@ -4,10 +4,10 @@ import type {
   RawSocrataHistorical,
 } from "@agrodatos/shared-types";
 
-const SOCRATA_BASE_URL = "https://www.datos.gov.co/resource";
-const HISTORICAL_DATASET_ID = "2pnw-mmge";
-const CURRENT_DATASET_ID = "uejq-wxrr";
-const VALLE_DEL_CAUCA_CODE = "76";
+export const SOCRATA_BASE_URL = "https://www.datos.gov.co/resource";
+export const HISTORICAL_DATASET_ID = "2pnw-mmge";
+export const CURRENT_DATASET_ID = "uejq-wxrr";
+export const VALLE_DEL_CAUCA_CODE = "76";
 const DEFAULT_PAGE_SIZE = 10_000;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_TIMEOUT_MS = 30_000;

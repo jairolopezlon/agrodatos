@@ -1,9 +1,13 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import {
+  activateVersion,
   createEtlLog,
+  discardVersion,
   getEtlLog,
   listEtlLogs,
+  listPendingVersions,
+  listVersions,
 } from "../db/repositories";
 import { runEtlWithLog } from "../etl/run";
 import type { Env } from "../index";
@@ -55,10 +59,93 @@ adminRoutes.post("/admin/trigger", async (c) => {
     return unauthorized;
   }
 
+  const force = c.req.query("force") === "true";
   const etlLogId = await createEtlLog(c.env, "MANUAL");
-  c.executionCtx.waitUntil(runEtlWithLog(c.env, etlLogId));
+  c.executionCtx.waitUntil(runEtlWithLog(c.env, etlLogId, { force }));
 
   return c.json({ etl_log_id: etlLogId, status: "RUNNING" }, 202);
+});
+
+adminRoutes.get("/admin/pending", async (c) => {
+  const unauthorized = await requireAdmin(c);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
+  const limit = Number(c.req.query("limit") ?? "20");
+  const pending = await listPendingVersions(
+    c.env,
+    Number.isFinite(limit) ? limit : 20,
+  );
+
+  return c.json(pending);
+});
+
+adminRoutes.post("/admin/pending/:versionId/apply", async (c) => {
+  const unauthorized = await requireAdmin(c);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
+  const versionId = c.req.param("versionId");
+
+  try {
+    await activateVersion(c.env, versionId);
+    return c.json({ applied: true, version_id: versionId });
+  } catch (error) {
+    return c.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudo aplicar la versión.",
+      },
+      400,
+    );
+  }
+});
+
+adminRoutes.post("/admin/pending/:versionId/omit", async (c) => {
+  const unauthorized = await requireAdmin(c);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
+  const versionId = c.req.param("versionId");
+
+  try {
+    await discardVersion(c.env, versionId);
+    return c.json({ discarded: true, version_id: versionId });
+  } catch (error) {
+    return c.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudo omitir la versión.",
+      },
+      400,
+    );
+  }
+});
+
+adminRoutes.get("/admin/versions", async (c) => {
+  const unauthorized = await requireAdmin(c);
+
+  if (unauthorized) {
+    return unauthorized;
+  }
+
+  const limit = Number(c.req.query("limit") ?? "20");
+  const versions = await listVersions(
+    c.env,
+    Number.isFinite(limit) ? limit : 20,
+  );
+
+  return c.json(versions);
 });
 
 adminRoutes.get("/admin/etl", async (c) => {
