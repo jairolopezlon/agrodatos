@@ -100,6 +100,7 @@ erDiagram
     TEXT trigger_source
     INTEGER records_extracted
     INTEGER records_rejected
+    TEXT error_message
     TEXT validation_report
     INTEGER execution_time_ms
   }
@@ -221,9 +222,9 @@ flowchart LR
 Reglas:
 
 - Cabecera fija con **AgroDatos** y menú de secciones **Resumen**, **Cultivos**, **Municipios** y **Evolución**.
-- En móvil (≤768 px), filtros, KPIs y gráficos usan `flex-wrap`, `flex-basis` y `max-width: 100%`; la barra inferior es sticky y el pie queda en el flujo normal, sin solaparse.
-- Filtros globales multi-selección en desplegables con buscador: **Municipios** y **Cultivos** incluyen todos por defecto, con “Seleccionar todos” y “Limpiar selección”; **Años** usa “Sin año seleccionado” para agregar la totalidad comparable 2007–2025.
-- Cada filtro muestra un resumen de selección y un botón **Todos**; **Limpiar filtros** restablece el tablero.
+- En móvil (≤768 px), filtros, KPIs y gráficos usan `flex-wrap`, `flex-basis` y `max-width: 100%`; las secciones pasan a una barra inferior sticky con botón **Filtros** que abre un panel inferior. El pie queda en el flujo normal, sin solaparse.
+- Filtros globales multi-selección en desplegables con buscador insensible a mayúsculas y tildes: **Municipios** y **Cultivos** incluyen todos por defecto, con “Seleccionar todos” y “Limpiar selección”; **Años** usa “Sin año seleccionado” para agregar la totalidad comparable 2007–2025.
+- Cada filtro muestra un resumen de selección y un contador cuando hay selección parcial; **Limpiar filtros** restablece todo el tablero.
 - Sin año seleccionado, las gráficas transversales agregan la **totalidad comparable 2007–2025** y la composición lo indica.
 - Varios años se agregan y la etiqueta muestra **“N años seleccionados”**.
 - Varios municipios activan la comparación de municipios seleccionados (producción y participación).
@@ -236,10 +237,11 @@ Reglas:
 - Los KPIs usan rótulos breves, destacan el valor y dejan periodo/contexto como texto secundario.
 - La composición usa barras horizontales (mejor comparación del resto frente a la caña) y mantiene la alternativa tabular.
 - Los filtros activos se muestran como etiquetas removibles y hay una acción visible para limpiarlos.
-- La navegación fija resalta la sección activa según el scroll.
+- La navegación resalta la sección con mayor área visible dentro del viewport.
 - Cada `ChartCard` incluye **Ver datos en tabla** y un estado vacío con **Limpiar filtros**.
 - El interruptor **Ocultar caña** recalcula el panorama sin caña; se bloquea solo si todos los cultivos seleccionados son caña.
-- El gráfico “Otros cultivos” siempre excluye la caña.
+- El gráfico “Otros cultivos” siempre excluye la caña y los cultivos seleccionados.
+- La coincidencia del buscador normaliza mayúsculas y tildes y muestra un estado vacío cuando no hay resultados.
 
 ## Cobertura de fuentes
 
@@ -283,6 +285,7 @@ flowchart LR
 pnpm dev
 pnpm typecheck
 pnpm --filter @agrodatos/worker-etl test
+pnpm --filter @agrodatos/frontend test
 pnpm --filter @agrodatos/worker-etl smoke
 pnpm --filter @agrodatos/worker-etl coverage
 pnpm --filter @agrodatos/worker-etl coverage:strict

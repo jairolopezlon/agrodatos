@@ -49,6 +49,10 @@ PWA React + Dexie + TanStack Query + Chart.js
 
 Documentación detallada y diagramas Mermaid: [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md).
 
+Inventario completo de funcionalidades y límites: [docs/FUNCIONALIDADES.md](docs/FUNCIONALIDADES.md).
+
+Despliegue, secretos y migraciones: [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## 🧰 Stack
 
 | Capa | Tecnología |
@@ -73,6 +77,7 @@ agrodatos/
 │   ├── frontend/          # React PWA + panel admin
 │   └── worker-etl/        # Worker ETL + API Hono
 ├── docs/
+│   ├── FUNCIONALIDADES.md # Inventario funcional
 │   ├── ARQUITECTURA.md    # Stack, flujos y diagramas Mermaid
 │   └── DEPLOY.md          # Despliegue, secretos y migraciones
 └── .github/workflows/     # CI, deploy y cobertura manual
@@ -189,25 +194,25 @@ Las rutas admin requieren `Authorization: Bearer <ADMIN_API_KEY>`.
 - React Query para lectura asíncrona de IndexedDB.
 - Descarga el payload solo si cambió el hash o `schema_version`.
 - Conserva la versión activa y la anterior; poda las demás.
-- Cabecera fija con **AgroDatos** y menú de secciones: Resumen, Cultivos, Municipios y Evolución.
-- En móvil, las tarjetas y filtros usan `flex-wrap` para bajar de línea; la barra inferior es sticky y el pie queda en el flujo normal, sin superponerse.
-- Filtros multi-selección en desplegables con buscador: municipios y cultivos incluyen todos por defecto; “Seleccionar todos” los marca y “Limpiar selección” vuelve al estado predeterminado.
-- Años usa “Sin año seleccionado” como estado predeterminado; en ese caso las gráficas transversales agregan los años comparables 2007–2025.
-- Resumen de selección por filtro y botón **Todos** para restablecer cada dimensión.
-- Sin año seleccionado, las gráficas transversales agregan la totalidad comparable **2007–2025**.
+- Cabecera fija con **AgroDatos** y navegación por **Resumen**, **Cultivos**, **Municipios** y **Evolución** en escritorio.
+- En móvil, barra inferior sticky con las secciones y un botón **Filtros** que abre un panel inferior.
+- Filtros multi-selección en desplegables con buscador (sin distinguir mayúsculas ni tildes).
+- Municipios y cultivos incluyen todos por defecto con casillas desmarcadas; “Seleccionar todos” las marca y “Limpiar selección” vuelve al estado predeterminado.
+- Años usa “Sin año seleccionado (2007–2025)”; sin selección, las gráficas transversales agregan los años comparables 2007–2025.
+- Chips de filtros activos con remoción individual y acción visible para limpiar todos los filtros.
 - Varios municipios se comparan entre sí; varios cultivos aparecen en composición, productividad, KPIs y una línea por cultivo en la evolución.
-- Varios años se agregan y la etiqueta indica **“N años seleccionados”**.
-- Tarjetas de insight con rótulos breves, valor principal destacado y periodo/contexto como texto secundario.
+- Varios años se agregan y la etiqueta indica “N años seleccionados”.
+- Tarjetas KPI con rótulos breves, valor principal destacado y periodo/contexto como texto secundario.
 - Composición por barras para comparar mejor los cultivos restantes; la tabla conserva el detalle.
-- Chips de filtros activos con remoción individual y acción visible para limpiar filtros.
 - Gráficos: composición, tendencia 2007–2025, otros cultivos sin caña, productividad t/ha, municipios, éxito de cosecha y semestres.
-- Navegación fija con **AgroDatos** y resaltado de la sección activa al hacer scroll.
+- La navegación resalta la sección con mayor área visible.
 - Interruptor **Ocultar caña** para ver el panorama sin la caña; se bloquea solo si todos los cultivos seleccionados son caña.
 - “Ver datos en tabla” en cada gráfico para lectura accesible.
 - Regla anual vs semestral: si hay ambos, se usa el anual; las subcategorías se suman.
 - 2006 se excluye de la totalidad y de la tendencia; si se selecciona, se marca **Datos parciales**.
-- Funcionamiento offline con fallback a caché.
-- Panel `/admin` con trigger, diff, aplicar/omitir e historial.
+- Funcionamiento offline con fallback a caché y aviso de actualización.
+- Diálogo **Fuente de datos** con datasets, conteos y licencia.
+- Panel `/admin` con trigger, polling, diff, aplicar/omitir, historial y logs.
 
 Estrategias PWA:
 
@@ -220,7 +225,7 @@ Estrategias PWA:
 
 ### Prerrequisitos
 
-- Node.js 24
+- Node.js 24 (recomendado; el monorepo declara `>=20`)
 - pnpm 10
 - Cuenta de Cloudflare para despliegue
 
@@ -238,7 +243,7 @@ pnpm install
 pnpm dev                                   # Worker + frontend
 pnpm typecheck                             # TypeScript en todo el monorepo
 pnpm --filter @agrodatos/worker-etl test   # 41 pruebas unitarias
-pnpm --filter @agrodatos/frontend test     # 8 pruebas de agregaciones
+pnpm --filter @agrodatos/frontend test     # 11 pruebas de agregaciones
 pnpm --filter @agrodatos/worker-etl smoke  # Smoke real contra Socrata
 pnpm --filter @agrodatos/worker-etl coverage
 pnpm --filter @agrodatos/worker-etl coverage:strict
@@ -251,7 +256,7 @@ pnpm build                                 # Build de Worker y frontend
 ## 🧪 Pruebas y cobertura
 
 - Unitarias backend: normalización, adaptadores, paginación/reintentos, transformación, validación, cobertura, diff, hash/gzip y versión.
-- Unitarias frontend: deduplicación anual/semestral, exclusión de 2006, top cultivos con/sin caña, rendimiento ponderado y éxito de cosecha.
+- Unitarias frontend: deduplicación anual/semestral, exclusión de 2006, totalidad 2007–2025, agregación de varios años, top cultivos con/sin caña, rendimiento ponderado, éxito de cosecha, comparación de municipios, varios cultivos en composición/productividad/evolución y exclusión de seleccionados en “Otros cultivos”.
 - Integración local con Wrangler y D1 para repositorio, API, trigger y aprobación.
 - Smoke real: 26.363 registros, 25.909 aceptados, gzip 190.836 bytes.
 - Cobertura híbrida:
