@@ -12,6 +12,7 @@ El proyecto implementa un motor ETL en el Edge que extrae, valida, normaliza y c
 | Panel admin | https://agrodatos.pages.dev/admin |
 | Worker ETL / API | https://agrodatos-worker-etl.jairolop88.workers.dev |
 | Health check | https://agrodatos-worker-etl.jairolop88.workers.dev/api/health |
+| Versión activa | `2026.11.09-4fde9c028aae` (25.909 registros, 107 cultivos, 57 periodos) |
 
 ## ✅ Estado
 

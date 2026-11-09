@@ -117,7 +117,7 @@ curl -X POST -H "Authorization: Bearer <ADMIN_API_KEY>" \
   "https://agrodatos-worker-etl.jairolop88.workers.dev/api/admin/trigger?force=true"
 ```
 
-La primera versión pendiente después de incluir 2006 debe mostrar 25.909 registros, 454 rechazados, 107 cultivos y 57 periodos. Se aplica desde `/admin` cuando se revise el diff.
+La versión `2026.11.09-4fde9c028aae` ya está activa con 25.909 registros, 107 cultivos y 57 periodos. La versión anterior `2026.11.09-f61c89984492` quedó `SUPERSEDED`. El flujo de aprobación queda disponible para futuras ejecuciones.
 
 ## GitHub Actions
 

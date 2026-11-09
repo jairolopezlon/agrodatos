@@ -20,6 +20,7 @@ Listado maestro de tareas del proyecto, ordenadas por dependencias y agrupadas e
 - Ola 7 completa: vista admin y pruebas implementadas.
 - Ola 8 completa: producción desplegada y CI/CD configurado.
 - Ola 9: normalización de cultivos, 2006 parcial, cobertura híbrida y aprobación manual de versiones.
+- Versión activa en producción: `2026.11.09-4fde9c028aae` (25 909 registros, 107 cultivos, 57 periodos).
 - Frontend: https://agrodatos.pages.dev · Worker: https://agrodatos-worker-etl.jairolop88.workers.dev
 
 ---
@@ -519,7 +520,7 @@ export interface CompressedAgroPayload {
   - GitHub Actions: install, typecheck, tests, build y deploy en `main`.
   - Documentación de variables, secrets y comandos de migración.
   - Dominio personalizado opcional.
-- **Notas:** Frontend en `https://agrodatos.pages.dev` y Worker en `https://agrodatos-worker-etl.jairolop88.workers.dev`. D1 remoto con esquema aplicado; cron activo `0 3 * * 1` (Cloudflare usa 1 = domingo; `0` es inválido). `ADMIN_API_KEY` configurada como secreto (su valor no se versiona); `SOCRATA_APP_TOKEN` omitido por decisión del usuario. ETL de producción verificado: log `SUCCESS`, 26 363 extraídos, 828 rechazados, versión `2026.11.09-f61c89984492`, 25 535 registros y gzip de 189 383 bytes. Se agregaron `ci.yml`, `deploy.yml`, `docs/DEPLOY.md` y la sección de despliegue del README. La creación inicial del proyecto Pages requirió `--force` por la delegación de Wrangler 4.158; los despliegues posteriores van directo a Pages. El workflow `CI` pasó en GitHub Actions; el job de deploy queda condicionado a `DEPLOY_ENABLED=true` y a configurar los secrets de GitHub (aún no configurados), por lo que el despliegue productivo se realizó manualmente.
+- **Notas:** Frontend en `https://agrodatos.pages.dev` y Worker en `https://agrodatos-worker-etl.jairolop88.workers.dev`. D1 remoto con migración `001_version_approval.sql` aplicada; cron activo `0 3 * * 1`. `ADMIN_API_KEY` configurada como secreto; `SOCRATA_APP_TOKEN` omitido por decisión del usuario. La versión activa es `2026.11.09-4fde9c028aae` con 25 909 registros, 107 cultivos canónicos, 57 periodos y gzip de 190 836 bytes; la anterior `2026.11.09-f61c89984492` (25 535) quedó `SUPERSEDED`. Se agregaron `ci.yml`, `deploy.yml`, `coverage.yml`, `docs/ARQUITECTURA.md` y `docs/DEPLOY.md`. La creación inicial de Pages requirió `--force`; el workflow `CI` pasó y el deploy automático sigue condicionado a `DEPLOY_ENABLED=true` y a los secrets de GitHub.
 
 ---
 
@@ -543,7 +544,7 @@ export interface CompressedAgroPayload {
   - Aplicación atómica y conservación de la versión activa anterior.
   - Historial de versiones.
   - No re-proponer un hash omitido; `?force=true` para forzar.
-- **Notas:** Implementado y verificado localmente: primera ejecución crea `PENDING`, el diff usa claves normalizadas, aplicar activa la versión y una segunda ejecución devuelve `NO_CHANGES`. La versión con 2006 se aplicará en producción al final del despliegue.
+- **Notas:** Implementado y verificado en producción: el ETL creó la versión `PENDING` `2026.11.09-4fde9c028aae` con diff de 374 agregados, 25 535 sin cambios, 0 modificados, 78 cultivos normalizados, 1 640 claves repetidas y periodo nuevo `2006B`; se aplicó desde la API y quedó `ACTIVE`. La versión anterior quedó `SUPERSEDED`. Omitir, forzar con `?force=true` y `NO_CHANGES` se probaron en local.
 
 ## Decisiones técnicas registradas
 
@@ -555,7 +556,7 @@ export interface CompressedAgroPayload {
 | Límite D1 | 2 MB por fila; 50 MB por resultado de consulta |
 | Lectura de BLOB | D1 devuelve `number[]`; convertir a `Uint8Array` al servir |
 | Hash | SHA-256 sobre `{ schema_version, dicts, data }`, sin metadatos volátiles |
-| Versión activa | No implementado en T02; evaluar índice único parcial en T04/T06 |
+| Versión activa | Índice único parcial `WHERE is_active = 1` implementado en T19 |
 | Paginación Socrata | `$limit=10000`, `$offset`, `$order=:id` |
 | Fuente vigente | Columnas reales: `rea_sembrada`, `rea_cosechada`, `producci_n`, `rendimiento` |
 | Fuente histórica | Columnas: `rea_sembrada_ha`, `rea_cosechada_ha`, `producci_n_t`, `rendimiento_t_ha` |
@@ -567,6 +568,10 @@ export interface CompressedAgroPayload {
 | Admin | `ADMIN_API_KEY` en memoria; Cloudflare Access recomendado en producción |
 | Producción | Frontend `https://agrodatos.pages.dev`; Worker `https://agrodatos-worker-etl.jairolop88.workers.dev` |
 | Cron | `0 3 * * 1` (Cloudflare usa 1 = domingo; `0` es inválido) |
+| Producción activa | `2026.11.09-4fde9c028aae`: 25 909 registros, 107 cultivos, 57 periodos |
+| Cultivos | Clave canónica mayúsculas sin tildes (Ñ preservada); etiqueta con tildes; 172 etiquetas → 107 claves |
+| 2006 | Año parcial: 374 registros, 42 municipios, 24 cultivos, periodo `2006B` |
+| Aprobación | Versión `PENDING` + diff; una sola pendiente; aplicar/omitir; hash omitido no se re-propone |
 
 ---
 
